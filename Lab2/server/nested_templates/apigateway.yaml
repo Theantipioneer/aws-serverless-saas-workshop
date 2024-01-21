@@ -138,7 +138,7 @@ Resources:
       DefinitionBody:
         openapi: 3.0.1
         info:
-          title: !Join ["", ["serverless-saas-admin-api-", !Ref "AWS::Region"]]
+          title: !Join ["", ["acumen-admin-api-", !Ref "AWS::Region"]]
         basePath: !Join ["", ["/", !Ref StageName]]
         schemes:
           - https
