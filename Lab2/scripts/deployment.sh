@@ -36,9 +36,9 @@ if [ ! -z "$PREPROVISIONED_ADMIN_SITE" ]; then
   echo "Workshop is running in WorkshopStudio"
   IS_RUNNING_IN_EVENT_ENGINE=true
   ADMIN_SITE_URL=$(aws cloudformation list-exports --query "Exports[?Name=='Serverless-SaaS-AdminAppSite'].Value" --output text)
-  LANDING_APP_SITE_URL=$(aws cloudformation list-exports --query "Exports[?Name=='Serverless-SaaS-LandingApplicationSite'].Value" --output text)
+
   ADMIN_SITE_BUCKET=$(aws cloudformation list-exports --query "Exports[?Name=='Serverless-SaaS-AdminSiteBucket'].Value" --output text)
-  LANDING_APP_SITE_BUCKET=$(aws cloudformation list-exports --query "Exports[?Name=='Serverless-SaaS-LandingApplicationSiteBucket'].Value" --output text)
+
 fi
 
 if [[ $server -eq 1 ]]; then
@@ -94,9 +94,9 @@ fi
 
 if [ "$IS_RUNNING_IN_EVENT_ENGINE" = false ]; then
   ADMIN_SITE_URL=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='AdminAppSite'].OutputValue" --output text)
-  LANDING_APP_SITE_URL=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='LandingApplicationSite'].OutputValue" --output text)
+
   ADMIN_SITE_BUCKET=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='AdminSiteBucket'].OutputValue" --output text)
-  LANDING_APP_SITE_BUCKET=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='LandingApplicationSiteBucket'].OutputValue" --output text)
+
 fi
 
 if [[ $client -eq 1 ]]; then
@@ -176,44 +176,3 @@ EoF
 
   echo "Completed configuring environment for Admin Client"
 
-  # Configuring landing UI
-
-  echo "aws s3 ls s3://${LANDING_APP_SITE_BUCKET}"
-  if ! aws s3 ls "s3://${LANDING_APP_SITE_BUCKET}"; then
-    echo "Error! S3 Bucket: $LANDING_APP_SITE_BUCKET not readable"
-    exit 1
-  fi
-
-  cd ../
-
-  cd Landing || exit # stop execution if cd fails
-
-  echo "Configuring environment for Landing Client"
-
-  cat <<EoF >./src/environments/environment.prod.ts
-export const environment = {
-  production: true,
-  apiGatewayUrl: '$ADMIN_APIGATEWAYURL'
-};
-EoF
-  cat <<EoF >./src/environments/environment.ts
-export const environment = {
-  production: false,
-  apiGatewayUrl: '$ADMIN_APIGATEWAYURL'
-};
-EoF
-
-  npm install && npm run build
-
-  echo "aws s3 sync --delete --cache-control no-store dist s3://${LANDING_APP_SITE_BUCKET}"
-  aws s3 sync --delete --cache-control no-store dist "s3://${LANDING_APP_SITE_BUCKET}"
-
-  if [[ $? -ne 0 ]]; then
-    exit 1
-  fi
-
-  echo "Completed configuring environment for Landing Client"
-  echo "Successfully completed deploying Admin UI and Landing UI"
-fi
-echo "Admin site URL: https://$ADMIN_SITE_URL"
-echo "Landing site URL: https://$LANDING_APP_SITE_URL"
