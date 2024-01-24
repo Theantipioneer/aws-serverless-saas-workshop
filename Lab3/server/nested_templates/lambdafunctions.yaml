@@ -463,8 +463,6 @@ Resources:
           PROVISION_TENANT_RESOURCE_PATH: "/provisioning"
           POWERTOOLS_SERVICE_NAME: "TenantRegistration.RegisterTenant"  
   
-   
-  
 Outputs:
   RegisterTenantLambdaExecutionRoleArn: 
     Value: !GetAtt RegisterTenantLambdaExecutionRole.Arn          

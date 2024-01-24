@@ -3,9 +3,9 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "stack-pooled"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-8tf6bmi4rdcx"
+s3_bucket = "acumen-sam-lab2-2024"
 s3_prefix = "serverless-saas-tenant"
-region = "us-west-2"
+region = "eu-west-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_NAMED_IAM"
 cached="true"

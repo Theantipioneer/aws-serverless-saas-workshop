@@ -2,7 +2,7 @@ version = 0.1
 [default]
 [default.deploy]
 [default.deploy.parameters]
-stack_name = "acumen-adminapi"
+stack_name = "acumen-saas"
 s3_bucket = "acumen-sam-lab2-2024"
 s3_prefix = "serverless-acumen"
 region = "us-west-2"

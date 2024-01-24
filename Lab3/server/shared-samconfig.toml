@@ -2,10 +2,10 @@ version = 0.1
 [default]
 [default.deploy]
 [default.deploy.parameters]
-stack_name = "serverless-saas"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-8tf6bmi4rdcx"
+stack_name = "acumen-saas"
+s3_bucket = "acumen-sam-lab2-2024"
 s3_prefix = "serverless-saas"
-region = "us-west-2"
+region = "eu-west-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 cached="true"

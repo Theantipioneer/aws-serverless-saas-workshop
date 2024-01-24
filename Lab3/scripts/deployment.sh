@@ -76,18 +76,17 @@ fi
 
 
 if [ "$IS_RUNNING_IN_EVENT_ENGINE" = false ]; then
-  ADMIN_SITE_URL=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='AdminAppSite'].OutputValue" --output text)
-  LANDING_APP_SITE_URL=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='LandingApplicationSite'].OutputValue" --output text)
-  APP_SITE_BUCKET=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='ApplicationSiteBucket'].OutputValue" --output text)
-  APP_SITE_URL=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='ApplicationSite'].OutputValue" --output text)
+  ADMIN_SITE_URL=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='AdminAppSite'].OutputValue" --output text)
+  APP_SITE_BUCKET=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='ApplicationSiteBucket'].OutputValue" --output text)
+  APP_SITE_URL=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='ApplicationSite'].OutputValue" --output text)
 fi
 
 if [[ $client -eq 1 ]]; then
   echo "Client code is getting deployed"
-  ADMIN_APIGATEWAYURL=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='AdminApi'].OutputValue" --output text)
+  ADMIN_APIGATEWAYURL=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='AdminApi'].OutputValue" --output text)
   APP_APIGATEWAYURL=$(aws cloudformation describe-stacks --stack-name stack-pooled --query "Stacks[0].Outputs[?OutputKey=='TenantAPI'].OutputValue" --output text)
-  APP_APPCLIENTID=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='CognitoTenantAppClientId'].OutputValue" --output text)
-  APP_USERPOOLID=$(aws cloudformation describe-stacks --stack-name serverless-saas --query "Stacks[0].Outputs[?OutputKey=='CognitoTenantUserPoolId'].OutputValue" --output text)
+  APP_APPCLIENTID=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='CognitoTenantAppClientId'].OutputValue" --output text)
+  APP_USERPOOLID=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='CognitoTenantUserPoolId'].OutputValue" --output text)
 
 
   # Admin UI and Landing UI are configured in Lab2 
@@ -105,29 +104,29 @@ if [[ $client -eq 1 ]]; then
 
   echo "Configuring environment for App Client"
 
-  cat << EoF > ./src/environments/environment.prod.ts
+  cat << EoF > ./environments/environment.prod.js
   export const environment = {
     production: true,
     regApiGatewayUrl: '$ADMIN_APIGATEWAYURL',
-    apiGatewayUrl: '$APP_APIGATEWAYURL',
+    apiGatewayUrl: '$APP_APIGATEWAYURL/document',
     userPoolId: '$APP_USERPOOLID',
     appClientId: '$APP_APPCLIENTID',
   };
 EoF
-  cat << EoF > ./src/environments/environment.ts
+  cat << EoF > ./environments/environment.js
   export const environment = {
     production: true,
     regApiGatewayUrl: '$ADMIN_APIGATEWAYURL',
-    apiGatewayUrl: '$APP_APIGATEWAYURL',
+    apiGatewayUrl: '$APP_APIGATEWAYURL/document',
     userPoolId: '$APP_USERPOOLID',
     appClientId: '$APP_APPCLIENTID',
   };
 EoF
 
-  npm install --legacy-peer-deps && npm run build
+  npm install && npm run build
 
-  echo "aws s3 sync --delete --cache-control no-store dist s3://$APP_SITE_BUCKET"
-  aws s3 sync --delete --cache-control no-store dist s3://$APP_SITE_BUCKET 
+  echo "aws s3 sync --delete --cache-control no-store out s3://$APP_SITE_BUCKET"
+  aws s3 sync --delete --cache-control no-store out s3://$APP_SITE_BUCKET 
 
   if [[ $? -ne 0 ]]; then
       exit 1
@@ -138,5 +137,4 @@ EoF
 fi  
 
 echo "Admin site URL: https://$ADMIN_SITE_URL"
-echo "Landing site URL: https://$LANDING_APP_SITE_URL"
 echo "App site URL: https://$APP_SITE_URL"

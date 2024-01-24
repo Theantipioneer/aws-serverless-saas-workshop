@@ -134,14 +134,6 @@ Outputs:
     Description: The name of the CloudFront url for Admin Management site
     Value: !GetAtt UserInterface.Outputs.AdminAppSite
     Condition: IsNotRunningInEventEngine
-  LandingApplicationSiteBucket:
-    Description: The S3 Bucket that will contain the static assets for the landing application
-    Value: !GetAtt UserInterface.Outputs.LandingAppBucket
-    Condition: IsNotRunningInEventEngine
-  LandingApplicationSite:
-    Description: The name of the CloudFront url for Landing site
-    Value: !GetAtt UserInterface.Outputs.LandingApplicationSite
-    Condition: IsNotRunningInEventEngine
   ApplicationSiteBucket:
     Description: The S3 Bucket that will contain the static assets for the tenant application
     Value: !GetAtt UserInterface.Outputs.AppBucket
