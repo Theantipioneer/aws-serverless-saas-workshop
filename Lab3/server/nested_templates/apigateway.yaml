@@ -70,7 +70,7 @@ Resources:
   AdminApiGatewayAccessLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/api-gateway/access-logs-serverless-saas-admin-api
+      LogGroupName: !Sub /aws/api-gateway/access-logs-acumen-admin-api
       RetentionInDays: 30
   AdminApiGatewayApi:
     Type: AWS::Serverless::Api

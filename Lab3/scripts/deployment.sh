@@ -87,6 +87,10 @@ if [[ $client -eq 1 ]]; then
   APP_APIGATEWAYURL=$(aws cloudformation describe-stacks --stack-name stack-pooled --query "Stacks[0].Outputs[?OutputKey=='TenantAPI'].OutputValue" --output text)
   APP_APPCLIENTID=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='CognitoTenantAppClientId'].OutputValue" --output text)
   APP_USERPOOLID=$(aws cloudformation describe-stacks --stack-name acumen-saas --query "Stacks[0].Outputs[?OutputKey=='CognitoTenantUserPoolId'].OutputValue" --output text)
+  AWS_REGION=$(aws configure get region)
+
+  USERS_UPLOAD_BUCKET="create-entities-uploads-acumen-154654dasfk"
+  IDENTITY_POOL_ID="eu-west-1:842387ba-0984-4dbd-ae86-9da6310b6460"
 
 
   # Admin UI and Landing UI are configured in Lab2 
@@ -111,6 +115,10 @@ if [[ $client -eq 1 ]]; then
     apiGatewayUrl: '$APP_APIGATEWAYURL/document',
     userPoolId: '$APP_USERPOOLID',
     appClientId: '$APP_APPCLIENTID',
+    region: '$AWS_REGION',
+    usersUploadBucket: '$USERS_UPLOAD_BUCKET',
+    identityPoolId: '$IDENTITY_POOL_ID',
+  };
   };
 EoF
   cat << EoF > ./environments/environment.js
@@ -120,6 +128,9 @@ EoF
     apiGatewayUrl: '$APP_APIGATEWAYURL/document',
     userPoolId: '$APP_USERPOOLID',
     appClientId: '$APP_APPCLIENTID',
+    region: '$AWS_REGION',
+    usersUploadBucket: '$USERS_UPLOAD_BUCKET',
+    identityPoolId: '$IDENTITY_POOL_ID',
   };
 EoF
 
@@ -138,3 +149,4 @@ fi
 
 echo "Admin site URL: https://$ADMIN_SITE_URL"
 echo "App site URL: https://$APP_SITE_URL"
+echo "AWS Region from CLI: $AWS_REGION"
