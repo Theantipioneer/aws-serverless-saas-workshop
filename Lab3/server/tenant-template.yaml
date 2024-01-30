@@ -85,6 +85,26 @@ Resources:
                   - dynamodb:Query
                 Resource:
                   - !GetAtt DocumentTable.Arn
+
+  EntityFunctionExecutionRole:
+    Type: AWS::IAM::Role     
+    Properties:
+      RoleName: pooled-entity-function-execution-role
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy    
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
              
   GetDocumentFunction:
     Type: AWS::Serverless::Function 
@@ -166,6 +186,21 @@ Resources:
           POWERTOOLS_SERVICE_NAME: "DocumentService"
           DOCUMENT_TABLE_NAME: !Ref DocumentTable
 
+  CreateEntityFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: EntityFunctionExecutionRole 
+    Properties:
+      CodeUri: EntityService/
+      Handler: entity_service.lambda_handler
+      Runtime: python3.9
+      MemorySize: 512  
+      Tracing: Active 
+      Role: !GetAtt EntityFunctionExecutionRole.Arn 
+      Layers: 
+        - !Ref ServerlessSaaSLayers
+      Environment:
+        Variables:
+          OPENAI_API_KEY: 
   
   #Tenant Authorizer
   TenantAuthorizerExecutionRole:
@@ -211,13 +246,12 @@ Resources:
         - !Ref ServerlessSaaSLayers
       Environment:
         Variables:
-          TENANT_USER_POOL: !ImportValue Acumen-SaaS-CognitoTenantUserPoolId
-          TENANT_APP_CLIENT: !ImportValue Acumen-SaaS-CognitoTenantAppClientId
-          
+          TENANT_USER_POOL: 
+          TENANT_APP_CLIENT: 
   ApiGatewayAccessLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /aws/api-gateway/access-logs-serverless-saas-tenant-api-pooled
+      LogGroupName: /aws/api-gateway/access-logs-acumen-saas-tenant-api-pooled
       RetentionInDays: 30
   ApiGatewayTenantApi:
     Type: AWS::Serverless::Api
@@ -417,6 +451,50 @@ Resources:
                 requestTemplates:
                   application/json: "{\"statusCode\": 200}"
                 type: mock                                    
+          /entity:
+            post:              
+              produces:
+                - application/json
+              responses: {}
+              security:   
+                - Authorizer: []
+              x-amazon-apigateway-integration:
+                uri: !Join
+                  - ''
+                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                    -  !GetAtt CreateEntityFunction.Arn
+                    - /invocations
+                httpMethod: POST
+                type: aws_proxy   
+            options:
+              consumes:
+                - application/json
+              produces:
+                - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: string
+                    Access-Control-Allow-Methods:
+                      type: string
+                    Access-Control-Allow-Headers:
+                      type: string
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: 200
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin:  "'*'"
+                passthroughBehavior: when_no_match
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                type: mock                                    
         components:
           securitySchemes:                    
             Authorizer:
@@ -513,7 +591,22 @@ Resources:
           !Ref ApiGatewayTenantApi, "/*/*/*"
           ]
         ]  
-
+  CreateEntityLambdaApiGatewayExecutionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 
+        - CreateEntityFunction
+        - Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join [
+        "", [
+          "arn:aws:execute-api:", 
+          {"Ref": "AWS::Region"}, ":", 
+          {"Ref": "AWS::AccountId"}, ":", 
+          !Ref ApiGatewayTenantApi, "/*/*/*"
+          ]
+        ] 
   AuthorizerLambdaApiGatewayExecutionPermission:
     Type: AWS::Lambda::Permission
     Properties:
