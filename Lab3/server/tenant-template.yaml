@@ -201,6 +201,7 @@ Resources:
             Environment:
                 Variables:
                     OPENAI_API_KEY: ""
+                    USER_UPLOADS_BUCKET: create-entities-uploads-acumen-154654dasfk
 
     #Tenant Authorizer
     TenantAuthorizerExecutionRole:

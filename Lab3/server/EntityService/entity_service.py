@@ -6,12 +6,16 @@ import requests
 import json
 import uuid
 import boto3
+import utils
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse, unquote
 from promptify import Prompter, OpenAI, Pipeline
 
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+upload_bucket = os.environ["USER_UPLOADS_BUCKET"]
 
 openai_api_key = os.environ["OPENAI_API_KEY"]
 model = OpenAI(openai_api_key)
@@ -54,7 +58,7 @@ def lambda_handler(event, context):
         authorization_header = event["headers"]["Authorization"]
         jwt_token = authorization_header.split(" ")[1]
 
-        bucketname = "create-entities-uploads-acumen-154654dasfk"
+        bucketname = upload_bucket
         payload = json.loads(event["body"])
         key = payload.get("image_key", "")
         file_path = payload.get("filePath", "")
@@ -104,23 +108,27 @@ def lambda_handler(event, context):
         ]
         validated_output = {key: modified_output.get(key, "") for key in required_keys}
 
-        documentEntities = {
+        entity = {
             "title": title,
             "image_key": key,
             **validated_output,
         }
-        print(documentEntities)
+        print(entity)
 
         create_document_api_endpoint = (
             "https://4ii59hmute.execute-api.eu-west-1.amazonaws.com/prod/document"
         )
         headers = {"Authorization": f"Bearer {jwt_token}"}
 
-        # Make an HTTP POST request to the Document API's create endpoint
         response = requests.post(
-            create_document_api_endpoint, json=documentEntities, headers=headers
+            create_document_api_endpoint, json=entity, headers=headers
         )
 
     except Exception as e:
         error_msg = process_error()
         logger.error(error_msg)
+        logger.error(e.response["Error"]["Message"])
+        raise Exception("Error creating entity", e)
+    else:
+        logger.info("Create entity succeeded:")
+        return utils.generate_response(entity)
