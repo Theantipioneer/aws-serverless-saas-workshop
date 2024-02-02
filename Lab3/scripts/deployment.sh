@@ -112,7 +112,7 @@ if [[ $client -eq 1 ]]; then
   export const environment = {
     production: true,
     regApiGatewayUrl: '$ADMIN_APIGATEWAYURL',
-    apiGatewayUrl: '$APP_APIGATEWAYURL/document',
+    apiGatewayUrl: '$APP_APIGATEWAYURL',
     userPoolId: '$APP_USERPOOLID',
     appClientId: '$APP_APPCLIENTID',
     region: '$AWS_REGION',
@@ -125,7 +125,7 @@ EoF
   export const environment = {
     production: true,
     regApiGatewayUrl: '$ADMIN_APIGATEWAYURL',
-    apiGatewayUrl: '$APP_APIGATEWAYURL/document',
+    apiGatewayUrl: '$APP_APIGATEWAYURL',
     userPoolId: '$APP_USERPOOLID',
     appClientId: '$APP_APPCLIENTID',
     region: '$AWS_REGION',

@@ -1,625 +1,673 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Serverless SaaS Reference Architecture 
+    Serverless SaaS Reference Architecture
 
 Globals:
-  Function:
-    Timeout: 29
-    Layers:
-      - !Sub "arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:14"
-    Environment:
-        Variables:
-          LOG_LEVEL: DEBUG         
-          POWERTOOLS_METRICS_NAMESPACE: "ServerlessSaaS"
-          
+    Function:
+        Timeout: 29
+        Layers:
+            - !Sub "arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:14"
+        Environment:
+            Variables:
+                LOG_LEVEL: DEBUG
+                POWERTOOLS_METRICS_NAMESPACE: "ServerlessSaaS"
+
 Parameters:
-  StageName:
-    Type: String
-    Default: "prod"
-    Description: "Stage Name for the api"
-Resources: 
-  ServerlessSaaSLayers:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: serverless-saas-dependencies-pooled
-      Description: Utilities for project
-      ContentUri: layers/
-      CompatibleRuntimes:
-        - python3.9          
-      LicenseInfo: 'MIT'
-      RetentionPolicy: Retain      
-    Metadata:
-      BuildMethod: python3.9   
-  
-  DocumentTable:
-    Type: AWS::DynamoDB::Table
-    Properties: 
-      AttributeDefinitions:
-        - AttributeName: shardId
-          AttributeType: S          
-        - AttributeName: documentId
-          AttributeType: S          
-      KeySchema:
-        - AttributeName: shardId
-          KeyType: HASH  
-        - AttributeName: documentId
-          KeyType: RANGE  
-      ProvisionedThroughput: 
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
-      TableName: Document-pooled
+    StageName:
+        Type: String
+        Default: "prod"
+        Description: "Stage Name for the api"
+Resources:
+    ServerlessSaaSLayers:
+        Type: AWS::Serverless::LayerVersion
+        Properties:
+            LayerName: serverless-saas-dependencies-pooled
+            Description: Utilities for project
+            ContentUri: layers/
+            CompatibleRuntimes:
+                - python3.9
+            LicenseInfo: "MIT"
+            RetentionPolicy: Retain
+        Metadata:
+            BuildMethod: python3.9
 
-  DocumentFunctionExecutionRole:
-    Type: AWS::IAM::Role     
-    Properties:
-      RoleName: pooled-document-function-execution-role
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns: 
-        - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy    
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
-      Policies:
-        - PolicyName: pooled-document-function-policy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:              
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:PutItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                Resource:
-                  - !GetAtt DocumentTable.Arn
+    DocumentTable:
+        Type: AWS::DynamoDB::Table
+        Properties:
+            AttributeDefinitions:
+                - AttributeName: shardId
+                  AttributeType: S
+                - AttributeName: documentId
+                  AttributeType: S
+            KeySchema:
+                - AttributeName: shardId
+                  KeyType: HASH
+                - AttributeName: documentId
+                  KeyType: RANGE
+            ProvisionedThroughput:
+                ReadCapacityUnits: 5
+                WriteCapacityUnits: 5
+            TableName: Document-pooled
 
-  EntityFunctionExecutionRole:
-    Type: AWS::IAM::Role     
-    Properties:
-      RoleName: pooled-entity-function-execution-role
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns: 
-        - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy    
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
-        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-             
-  GetDocumentFunction:
-    Type: AWS::Serverless::Function 
-    DependsOn: DocumentFunctionExecutionRole 
-    Properties:
-      CodeUri: DocumentService/
-      Handler: document_service.get_document
-      Runtime: python3.9  
-      Tracing: Active
-      Role: !GetAtt DocumentFunctionExecutionRole.Arn
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          POWERTOOLS_SERVICE_NAME: "DocumentService"
-          DOCUMENT_TABLE_NAME: !Ref DocumentTable      
-  
-  GetDocumentsFunction:
-    Type: AWS::Serverless::Function 
-    DependsOn: DocumentFunctionExecutionRole 
-    Properties:
-      CodeUri: DocumentService/
-      Handler: document_service.get_documents
-      Runtime: python3.9  
-      Tracing: Active
-      Role: !GetAtt DocumentFunctionExecutionRole.Arn
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          POWERTOOLS_SERVICE_NAME: "DocumentService"
-          DOCUMENT_TABLE_NAME: !Ref DocumentTable
-      
-  CreateDocumentFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: DocumentFunctionExecutionRole 
-    Properties:
-      CodeUri: DocumentService/
-      Handler: document_service.create_document
-      Runtime: python3.9  
-      Tracing: Active 
-      Role: !GetAtt DocumentFunctionExecutionRole.Arn 
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          POWERTOOLS_SERVICE_NAME: "DocumentService"
-          DOCUMENT_TABLE_NAME: !Ref DocumentTable
+    DocumentFunctionExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: pooled-document-function-execution-role
+            Path: "/"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+            Policies:
+                - PolicyName: pooled-document-function-policy
+                  PolicyDocument:
+                      Version: 2012-10-17
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - dynamodb:GetItem
+                                - dynamodb:UpdateItem
+                                - dynamodb:PutItem
+                                - dynamodb:DeleteItem
+                                - dynamodb:Query
+                            Resource:
+                                - !GetAtt DocumentTable.Arn
 
-  UpdateDocumentFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: DocumentFunctionExecutionRole 
-    Properties:
-      CodeUri: DocumentService/
-      Handler: document_service.update_document
-      Runtime: python3.9 
-      Tracing: Active
-      Role: !GetAtt DocumentFunctionExecutionRole.Arn 
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          POWERTOOLS_SERVICE_NAME: "DocumentService"
-          DOCUMENT_TABLE_NAME: !Ref DocumentTable
+    EntityFunctionExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: pooled-entity-function-execution-role
+            Path: "/"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+                - arn:aws:iam::aws:policy/AmazonTextractFullAccess
 
-  DeleteDocumentFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: DocumentFunctionExecutionRole 
-    Properties:
-      CodeUri: DocumentService/
-      Handler: document_service.delete_document
-      Runtime: python3.9 
-      Tracing: Active
-      Role: !GetAtt DocumentFunctionExecutionRole.Arn 
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          POWERTOOLS_SERVICE_NAME: "DocumentService"
-          DOCUMENT_TABLE_NAME: !Ref DocumentTable
+    GetDocumentFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: DocumentFunctionExecutionRole
+        Properties:
+            CodeUri: DocumentService/
+            Handler: document_service.get_document
+            Runtime: python3.9
+            Tracing: Active
+            Role: !GetAtt DocumentFunctionExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    POWERTOOLS_SERVICE_NAME: "DocumentService"
+                    DOCUMENT_TABLE_NAME: !Ref DocumentTable
 
-  CreateEntityFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: EntityFunctionExecutionRole 
-    Properties:
-      CodeUri: EntityService/
-      Handler: entity_service.lambda_handler
-      Runtime: python3.9
-      MemorySize: 512  
-      Tracing: Active 
-      Role: !GetAtt EntityFunctionExecutionRole.Arn 
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          OPENAI_API_KEY: 
-  
-  #Tenant Authorizer
-  TenantAuthorizerExecutionRole:
-    Type: AWS::IAM::Role     
-    Properties:
-      RoleName: tenant-authorizer-execution-role
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns: 
-        - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy    
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess   
-      Policies:      
-        - PolicyName: tenant-authorizer-execution-policy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - cognito-idp:List*                                    
-                Resource:
-                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*    
-    
-  BusinessServicesAuthorizerFunction:
-    Type: AWS::Serverless::Function 
-    DependsOn: TenantAuthorizerExecutionRole
-    Properties:
-      CodeUri: Resources/
-      Handler: tenant_authorizer.lambda_handler
-      Runtime: python3.9
-      Role: !GetAtt TenantAuthorizerExecutionRole.Arn
-      MemorySize: 256
-      Tracing: Active
-      Layers: 
-        - !Ref ServerlessSaaSLayers
-      Environment:
-        Variables:
-          TENANT_USER_POOL: 
-          TENANT_APP_CLIENT: 
-  ApiGatewayAccessLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /aws/api-gateway/access-logs-acumen-saas-tenant-api-pooled
-      RetentionInDays: 30
-  ApiGatewayTenantApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      MethodSettings:
-        - DataTraceEnabled: False
-          LoggingLevel: INFO
-          MetricsEnabled: True
-          ResourcePath: '/*' 
-          HttpMethod: '*' 
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiGatewayAccessLogs.Arn
-        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
-      TracingEnabled: True
-      DefinitionBody:
-        openapi: 3.0.1
-        info:
-          title: 'pooled-acumen-saas-tenant-api'
-        basePath: !Join ['', ['/', !Ref StageName]]
-        x-amazon-apigateway-api-key-source : "AUTHORIZER"
-        schemes:
-          - https
-        paths:  
-          /document/{id}:
-            get:
-              summary: Returns a document
-              description: Return a document by a document id.
-              produces:
-                - application/json
-              parameters:
-                - name: id
-                  in: path
-                  required: true
-                  type: string
-              responses: {}
-              security:  
-                - Authorizer: []
-              x-amazon-apigateway-integration:
-                uri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    -  !GetAtt GetDocumentFunction.Arn
-                    - /invocations
-                httpMethod: POST
-                type: aws_proxy 
-            put:              
-              produces:
-                - application/json
-              responses: {}
-              security: 
-                - Authorizer: []
-              x-amazon-apigateway-integration:
-                uri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    -  !GetAtt UpdateDocumentFunction.Arn
-                    - /invocations
-                httpMethod: POST
-                type: aws_proxy     
-            delete:
-              summary: Deletes a document
-              description: Deletes a document by a document id.
-              produces:
-                - application/json
-              parameters:
-                - name: id
-                  in: path
-                  required: true
-                  type: string
-              responses: {}
-              security:     
-                - Authorizer: []
-              x-amazon-apigateway-integration:
-                uri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    -  !GetAtt DeleteDocumentFunction.Arn
-                    - /invocations
-                httpMethod: POST
-                type: aws_proxy 
-            options:
-              consumes:
-                - application/json
-              produces:
-                - application/json
-              responses:
-                '200':
-                  description: 200 response
-                  schema:
-                    $ref: "#/definitions/Empty"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      type: string
-                    Access-Control-Allow-Methods:
-                      type: string
-                    Access-Control-Allow-Headers:
-                      type: string
-              x-amazon-apigateway-integration:
-                responses:
-                  default:
-                    statusCode: 200
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Origin:  "'*'"
-                passthroughBehavior: when_no_match
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
-                type: mock      
-          /documents:
-            get:
-              summary: Returns all documents
-              description: Returns all documents.
-              produces:
-                - application/json
-              responses: {}
-              security: 
-                - Authorizer: []
-              x-amazon-apigateway-integration:
-                uri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    -  !GetAtt GetDocumentsFunction.Arn
-                    - /invocations
-                httpMethod: POST
-                type: aws_proxy  
-            options:
-              consumes:
-                - application/json
-              produces:
-                - application/json
-              responses:
-                '200':
-                  description: 200 response
-                  schema:
-                    $ref: "#/definitions/Empty"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      type: string
-                    Access-Control-Allow-Methods:
-                      type: string
-                    Access-Control-Allow-Headers:
-                      type: string
-              x-amazon-apigateway-integration:
-                responses:
-                  default:
-                    statusCode: 200
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Origin:  "'*'"
-                passthroughBehavior: when_no_match
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
-                type: mock                           
-          /document:
-            post:              
-              produces:
-                - application/json
-              responses: {}
-              security:   
-                - Authorizer: []
-              x-amazon-apigateway-integration:
-                uri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    -  !GetAtt CreateDocumentFunction.Arn
-                    - /invocations
-                httpMethod: POST
-                type: aws_proxy   
-            options:
-              consumes:
-                - application/json
-              produces:
-                - application/json
-              responses:
-                '200':
-                  description: 200 response
-                  schema:
-                    $ref: "#/definitions/Empty"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      type: string
-                    Access-Control-Allow-Methods:
-                      type: string
-                    Access-Control-Allow-Headers:
-                      type: string
-              x-amazon-apigateway-integration:
-                responses:
-                  default:
-                    statusCode: 200
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Origin:  "'*'"
-                passthroughBehavior: when_no_match
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
-                type: mock                                    
-          /entity:
-            post:              
-              produces:
-                - application/json
-              responses: {}
-              security:   
-                - Authorizer: []
-              x-amazon-apigateway-integration:
-                uri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    -  !GetAtt CreateEntityFunction.Arn
-                    - /invocations
-                httpMethod: POST
-                type: aws_proxy   
-            options:
-              consumes:
-                - application/json
-              produces:
-                - application/json
-              responses:
-                '200':
-                  description: 200 response
-                  schema:
-                    $ref: "#/definitions/Empty"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      type: string
-                    Access-Control-Allow-Methods:
-                      type: string
-                    Access-Control-Allow-Headers:
-                      type: string
-              x-amazon-apigateway-integration:
-                responses:
-                  default:
-                    statusCode: 200
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Origin:  "'*'"
-                passthroughBehavior: when_no_match
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
-                type: mock                                    
-        components:
-          securitySchemes:                    
-            Authorizer:
-              type: "apiKey"
-              name: "Authorization"
-              in: "header"
-              x-amazon-apigateway-authtype: "custom"
-              x-amazon-apigateway-authorizer:
-                authorizerUri: !Join
-                  - ''
-                  - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                    - !GetAtt BusinessServicesAuthorizerFunction.Arn                      
-                    - /invocations
-                authorizerResultTtlInSeconds: 30
-                type: "token"
-      StageName: !Ref StageName
-  
-  GetDocumentsLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt GetDocumentsFunction.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join [
-        "", [
-          "arn:aws:execute-api:", 
-          {"Ref": "AWS::Region"}, ":", 
-          {"Ref": "AWS::AccountId"}, ":", 
-          !Ref ApiGatewayTenantApi, "/*/*/*"
-          ]
-        ] 
-      
-  GetDocumentLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt 
-        - GetDocumentFunction
-        - Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join [
-        "", [
-          "arn:aws:execute-api:", 
-          {"Ref": "AWS::Region"}, ":", 
-          {"Ref": "AWS::AccountId"}, ":", 
-          !Ref ApiGatewayTenantApi, "/*/*/*"
-          ]
-        ]  
-  CreateDocumentLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt 
-        - CreateDocumentFunction
-        - Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join [
-        "", [
-          "arn:aws:execute-api:", 
-          {"Ref": "AWS::Region"}, ":", 
-          {"Ref": "AWS::AccountId"}, ":", 
-          !Ref ApiGatewayTenantApi, "/*/*/*"
-          ]
-        ]    
-  UpdateDocumentLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt 
-        - UpdateDocumentFunction
-        - Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join [
-        "", [
-          "arn:aws:execute-api:", 
-          {"Ref": "AWS::Region"}, ":", 
-          {"Ref": "AWS::AccountId"}, ":", 
-          !Ref ApiGatewayTenantApi, "/*/*/*"
-          ]
-        ]         
-  DeleteDocumentLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt 
-        - DeleteDocumentFunction
-        - Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join [
-        "", [
-          "arn:aws:execute-api:", 
-          {"Ref": "AWS::Region"}, ":", 
-          {"Ref": "AWS::AccountId"}, ":", 
-          !Ref ApiGatewayTenantApi, "/*/*/*"
-          ]
-        ]  
-  CreateEntityLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt 
-        - CreateEntityFunction
-        - Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join [
-        "", [
-          "arn:aws:execute-api:", 
-          {"Ref": "AWS::Region"}, ":", 
-          {"Ref": "AWS::AccountId"}, ":", 
-          !Ref ApiGatewayTenantApi, "/*/*/*"
-          ]
-        ] 
-  AuthorizerLambdaApiGatewayExecutionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt BusinessServicesAuthorizerFunction.Arn     
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join ["", ["arn:aws:execute-api:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":", !Ref ApiGatewayTenantApi, "/*/*" ]]
-      
-  
+    GetDocumentsFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: DocumentFunctionExecutionRole
+        Properties:
+            CodeUri: DocumentService/
+            Handler: document_service.get_documents
+            Runtime: python3.9
+            Tracing: Active
+            Role: !GetAtt DocumentFunctionExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    POWERTOOLS_SERVICE_NAME: "DocumentService"
+                    DOCUMENT_TABLE_NAME: !Ref DocumentTable
+
+    CreateDocumentFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: DocumentFunctionExecutionRole
+        Properties:
+            CodeUri: DocumentService/
+            Handler: document_service.create_document
+            Runtime: python3.9
+            Tracing: Active
+            Role: !GetAtt DocumentFunctionExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    POWERTOOLS_SERVICE_NAME: "DocumentService"
+                    DOCUMENT_TABLE_NAME: !Ref DocumentTable
+
+    UpdateDocumentFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: DocumentFunctionExecutionRole
+        Properties:
+            CodeUri: DocumentService/
+            Handler: document_service.update_document
+            Runtime: python3.9
+            Tracing: Active
+            Role: !GetAtt DocumentFunctionExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    POWERTOOLS_SERVICE_NAME: "DocumentService"
+                    DOCUMENT_TABLE_NAME: !Ref DocumentTable
+
+    DeleteDocumentFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: DocumentFunctionExecutionRole
+        Properties:
+            CodeUri: DocumentService/
+            Handler: document_service.delete_document
+            Runtime: python3.9
+            Tracing: Active
+            Role: !GetAtt DocumentFunctionExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    POWERTOOLS_SERVICE_NAME: "DocumentService"
+                    DOCUMENT_TABLE_NAME: !Ref DocumentTable
+
+    CreateEntityFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: EntityFunctionExecutionRole
+        Properties:
+            CodeUri: EntityService/
+            Handler: entity_service.lambda_handler
+            Runtime: python3.9
+            MemorySize: 512
+            Tracing: Active
+            Role: !GetAtt EntityFunctionExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    OPENAI_API_KEY: ""
+
+    #Tenant Authorizer
+    TenantAuthorizerExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: tenant-authorizer-execution-role
+            Path: "/"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+            Policies:
+                - PolicyName: tenant-authorizer-execution-policy
+                  PolicyDocument:
+                      Version: 2012-10-17
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - cognito-idp:List*
+                            Resource:
+                                - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+
+    BusinessServicesAuthorizerFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: TenantAuthorizerExecutionRole
+        Properties:
+            CodeUri: Resources/
+            Handler: tenant_authorizer.lambda_handler
+            Runtime: python3.9
+            Role: !GetAtt TenantAuthorizerExecutionRole.Arn
+            MemorySize: 256
+            Tracing: Active
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    TENANT_USER_POOL: ""
+                    TENANT_APP_CLIENT: ""
+    ApiGatewayAccessLogs:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: /aws/api-gateway/access-logs-acumen-saas-tenant-api-pooled
+            RetentionInDays: 30
+    ApiGatewayTenantApi:
+        Type: AWS::Serverless::Api
+        Properties:
+            MethodSettings:
+                - DataTraceEnabled: False
+                  LoggingLevel: INFO
+                  MetricsEnabled: True
+                  ResourcePath: "/*"
+                  HttpMethod: "*"
+            AccessLogSetting:
+                DestinationArn: !GetAtt ApiGatewayAccessLogs.Arn
+                Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
+            TracingEnabled: True
+            DefinitionBody:
+                openapi: 3.0.1
+                info:
+                    title: "pooled-acumen-saas-tenant-api"
+                basePath: !Join ["", ["/", !Ref StageName]]
+                x-amazon-apigateway-api-key-source: "AUTHORIZER"
+                schemes:
+                    - https
+                paths:
+                    /document/{id}:
+                        get:
+                            summary: Returns a document
+                            description: Return a document by a document id.
+                            produces:
+                                - application/json
+                            parameters:
+                                - name: id
+                                  in: path
+                                  required: true
+                                  type: string
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt GetDocumentFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        put:
+                            produces:
+                                - application/json
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt UpdateDocumentFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        delete:
+                            summary: Deletes a document
+                            description: Deletes a document by a document id.
+                            produces:
+                                - application/json
+                            parameters:
+                                - name: id
+                                  in: path
+                                  required: true
+                                  type: string
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt DeleteDocumentFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        options:
+                            consumes:
+                                - application/json
+                            produces:
+                                - application/json
+                            responses:
+                                "200":
+                                    description: 200 response
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                                    headers:
+                                        Access-Control-Allow-Origin:
+                                            type: string
+                                        Access-Control-Allow-Methods:
+                                            type: string
+                                        Access-Control-Allow-Headers:
+                                            type: string
+                            x-amazon-apigateway-integration:
+                                responses:
+                                    default:
+                                        statusCode: 200
+                                        responseParameters:
+                                            method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                                            method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                                            method.response.header.Access-Control-Allow-Origin: "'*'"
+                                passthroughBehavior: when_no_match
+                                requestTemplates:
+                                    application/json: '{"statusCode": 200}'
+                                type: mock
+                    /documents:
+                        get:
+                            summary: Returns all documents
+                            description: Returns all documents.
+                            produces:
+                                - application/json
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt GetDocumentsFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        options:
+                            consumes:
+                                - application/json
+                            produces:
+                                - application/json
+                            responses:
+                                "200":
+                                    description: 200 response
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                                    headers:
+                                        Access-Control-Allow-Origin:
+                                            type: string
+                                        Access-Control-Allow-Methods:
+                                            type: string
+                                        Access-Control-Allow-Headers:
+                                            type: string
+                            x-amazon-apigateway-integration:
+                                responses:
+                                    default:
+                                        statusCode: 200
+                                        responseParameters:
+                                            method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                                            method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                                            method.response.header.Access-Control-Allow-Origin: "'*'"
+                                passthroughBehavior: when_no_match
+                                requestTemplates:
+                                    application/json: '{"statusCode": 200}'
+                                type: mock
+                    /document:
+                        post:
+                            produces:
+                                - application/json
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt CreateDocumentFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        options:
+                            consumes:
+                                - application/json
+                            produces:
+                                - application/json
+                            responses:
+                                "200":
+                                    description: 200 response
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                                    headers:
+                                        Access-Control-Allow-Origin:
+                                            type: string
+                                        Access-Control-Allow-Methods:
+                                            type: string
+                                        Access-Control-Allow-Headers:
+                                            type: string
+                            x-amazon-apigateway-integration:
+                                responses:
+                                    default:
+                                        statusCode: 200
+                                        responseParameters:
+                                            method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                                            method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                                            method.response.header.Access-Control-Allow-Origin: "'*'"
+                                passthroughBehavior: when_no_match
+                                requestTemplates:
+                                    application/json: '{"statusCode": 200}'
+                                type: mock
+                    /entity:
+                        post:
+                            produces:
+                                - application/json
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt CreateEntityFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        options:
+                            consumes:
+                                - application/json
+                            produces:
+                                - application/json
+                            responses:
+                                "200":
+                                    description: 200 response
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                                    headers:
+                                        Access-Control-Allow-Origin:
+                                            type: string
+                                        Access-Control-Allow-Methods:
+                                            type: string
+                                        Access-Control-Allow-Headers:
+                                            type: string
+                            x-amazon-apigateway-integration:
+                                responses:
+                                    default:
+                                        statusCode: 200
+                                        responseParameters:
+                                            method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                                            method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                                            method.response.header.Access-Control-Allow-Origin: "'*'"
+                                passthroughBehavior: when_no_match
+                                requestTemplates:
+                                    application/json: '{"statusCode": 200}'
+                                type: mock
+                components:
+                    securitySchemes:
+                        Authorizer:
+                            type: "apiKey"
+                            name: "Authorization"
+                            in: "header"
+                            x-amazon-apigateway-authtype: "custom"
+                            x-amazon-apigateway-authorizer:
+                                authorizerUri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt BusinessServicesAuthorizerFunction.Arn
+                                      - /invocations
+                                authorizerResultTtlInSeconds: 30
+                                type: "token"
+            StageName: !Ref StageName
+
+    GetDocumentsLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt GetDocumentsFunction.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+
+    GetDocumentLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt
+                - GetDocumentFunction
+                - Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+    CreateDocumentLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt
+                - CreateDocumentFunction
+                - Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+    UpdateDocumentLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt
+                - UpdateDocumentFunction
+                - Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+    DeleteDocumentLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt
+                - DeleteDocumentFunction
+                - Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+    CreateEntityLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt
+                - CreateEntityFunction
+                - Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+    AuthorizerLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt BusinessServicesAuthorizerFunction.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        !Ref "AWS::Region",
+                        ":",
+                        !Ref "AWS::AccountId",
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*",
+                    ],
+                ]
+
 Outputs:
-  TenantApiGatewayId:
-    Description: Id for Tenant API Gateway
-    Value: !Ref ApiGatewayTenantApi
-  TenantAPI:
-    Description: "API Gateway endpoint URL for Tenant API"
-    Value: !Join ['', [!Sub "https://${ApiGatewayTenantApi}.execute-api.${AWS::Region}.amazonaws.com/", !Ref StageName]]
+    TenantApiGatewayId:
+        Description: Id for Tenant API Gateway
+        Value: !Ref ApiGatewayTenantApi
+    TenantAPI:
+        Description: "API Gateway endpoint URL for Tenant API"
+        Value:
+            !Join [
+                "",
+                [
+                    !Sub "https://${ApiGatewayTenantApi}.execute-api.${AWS::Region}.amazonaws.com/",
+                    !Ref StageName,
+                ],
+            ]
