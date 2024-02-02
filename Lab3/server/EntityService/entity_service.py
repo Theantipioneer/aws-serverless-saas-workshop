@@ -120,7 +120,7 @@ def lambda_handler(event, context):
         )
         headers = {"Authorization": f"Bearer {jwt_token}"}
 
-        response = requests.post(
+        document = requests.post(
             create_document_api_endpoint, json=entity, headers=headers
         )
 
@@ -131,4 +131,4 @@ def lambda_handler(event, context):
         raise Exception("Error creating entity", e)
     else:
         logger.info("Create entity succeeded:")
-        return utils.generate_response(entity)
+        return utils.generate_response(document)
