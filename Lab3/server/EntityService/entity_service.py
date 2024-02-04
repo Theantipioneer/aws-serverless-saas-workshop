@@ -7,6 +7,7 @@ import json
 import uuid
 import boto3
 import utils
+from botocore.exceptions import ClientError
 from urllib.parse import unquote_plus
 from urllib.parse import urlparse, unquote
 from promptify import Prompter, OpenAI, Pipeline
@@ -120,15 +121,28 @@ def lambda_handler(event, context):
         )
         headers = {"Authorization": f"Bearer {jwt_token}"}
 
-        document = requests.post(
+        response = requests.post(
             create_document_api_endpoint, json=entity, headers=headers
         )
 
-    except Exception as e:
+        # Check the response status
+        if response.status_code == 200:
+            # Document creation successful
+            document_response = response.json()  # Extract the response as JSON
+            logger.info("Create document succeeded:")
+            return utils.generate_response(
+                document_response
+            )  # Include the document response in the Lambda response
+        else:
+            # Document creation failed
+            logger.error("Failed to create document.")
+            raise Exception("Error creating document")
+
+    except ClientError as e:
         error_msg = process_error()
         logger.error(error_msg)
         logger.error(e.response["Error"]["Message"])
         raise Exception("Error creating entity", e)
     else:
         logger.info("Create entity succeeded:")
-        return utils.generate_response(document)
+        return utils.generate_response(response)
