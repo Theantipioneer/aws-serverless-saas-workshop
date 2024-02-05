@@ -173,9 +173,9 @@ Outputs:
         Description: The user pool id for tenant user pool
         Value: !GetAtt Cognito.Outputs.CognitoUserPoolId
         Export:
-            Name: "Serverless-SaaS-CognitoTenantUserPoolId"
+            Name: "Acumen-SaaS-CognitoTenantUserPoolId"
     CognitoTenantAppClientId:
         Description: The app client id for tenant user pool
         Value: !GetAtt Cognito.Outputs.CognitoUserPoolClientId
         Export:
-            Name: "Serverless-SaaS-CognitoTenantAppClientId"
+            Name: "Acumen-SaaS-CognitoTenantAppClientId"

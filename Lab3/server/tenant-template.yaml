@@ -265,8 +265,8 @@ Resources:
                 - !Ref ServerlessSaaSLayers
             Environment:
                 Variables:
-                    TENANT_USER_POOL: ""
-                    TENANT_APP_CLIENT: ""
+                    TENANT_USER_POOL: !ImportValue Acumen-SaaS-CognitoTenantUserPoolId
+                    TENANT_APP_CLIENT: !ImportValue Acumen-SaaS-CognitoTenantAppClientId
     ApiGatewayAccessLogs:
         Type: AWS::Logs::LogGroup
         Properties:
