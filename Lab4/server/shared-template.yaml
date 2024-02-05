@@ -179,3 +179,8 @@ Outputs:
         Value: !GetAtt Cognito.Outputs.CognitoUserPoolClientId
         Export:
             Name: "Acumen-SaaS-CognitoTenantAppClientId"
+    AuthorizerExecutionRoleArn:
+        Description: The Lambda authorizer execution role
+        Value: !GetAtt LambdaFunctions.Outputs.AuthorizerExecutionRoleArn
+        Export:
+            Name: "Acumen-SaaS-AuthorizerExecutionRoleArn"

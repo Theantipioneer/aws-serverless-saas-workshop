@@ -217,44 +217,13 @@ Resources:
                     OPENAI_API_KEY: ""
                     USER_UPLOADS_BUCKET: create-entities-uploads-acumen-154654dasfk
 
-    #Tenant Authorizer
-    TenantAuthorizerExecutionRole:
-        Type: AWS::IAM::Role
-        Properties:
-            RoleName: tenant-authorizer-execution-role
-            Path: "/"
-            AssumeRolePolicyDocument:
-                Version: 2012-10-17
-                Statement:
-                    - Effect: Allow
-                      Principal:
-                          Service:
-                              - lambda.amazonaws.com
-                      Action:
-                          - sts:AssumeRole
-            ManagedPolicyArns:
-                - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy
-                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-                - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
-            Policies:
-                - PolicyName: tenant-authorizer-execution-policy
-                  PolicyDocument:
-                      Version: 2012-10-17
-                      Statement:
-                          - Effect: Allow
-                            Action:
-                                - cognito-idp:List*
-                            Resource:
-                                - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
-
     BusinessServicesAuthorizerFunction:
         Type: AWS::Serverless::Function
-        DependsOn: TenantAuthorizerExecutionRole
         Properties:
             CodeUri: Resources/
             Handler: tenant_authorizer.lambda_handler
             Runtime: python3.9
-            Role: !GetAtt TenantAuthorizerExecutionRole.Arn
+            Role: !ImportValue Acumen-SaaS-AuthorizerExecutionRoleArn
             MemorySize: 256
             Tracing: Active
             Layers:
