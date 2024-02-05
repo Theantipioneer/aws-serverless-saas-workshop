@@ -265,8 +265,8 @@ Resources:
                 - !Ref ServerlessSaaSLayers
             Environment:
                 Variables:
-                    TENANT_USER_POOL: !Ref CognitoUserPoolId
-                    TENANT_APP_CLIENT: !Ref CognitoUserPoolClientId
+                    TENANT_USER_POOL: ""
+                    TENANT_APP_CLIENT: ""
     ApiGatewayAccessLogs:
         Type: AWS::Logs::LogGroup
         Properties:
