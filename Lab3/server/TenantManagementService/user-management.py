@@ -321,9 +321,10 @@ def enable_users_by_tenant(event, context):
         return utils.create_unauthorized_response()
 
 
-def get_user_info(user_pool_id, user_name):
+def get_user_info(event, user_pool_id, user_name):
+    metrics_manager.record_metric(event, "UserInfoRequested", "Count", 1)
     response = client.admin_get_user(UserPoolId=user_pool_id, Username=user_name)
-    logger.info(response)
+    logger.log_with_tenant_context(event, response)
     user_info = UserInfo()
     user_info.user_name = response["Username"]
     for attr in response["UserAttributes"]:
@@ -335,7 +336,7 @@ def get_user_info(user_pool_id, user_name):
             user_info.user_role = attr["Value"]
         if attr["Name"] == "email":
             user_info.email = attr["Value"]
-    logger.info(user_info)
+    logger.log_with_tenant_context(event, user_info)
     return user_info
 
 
