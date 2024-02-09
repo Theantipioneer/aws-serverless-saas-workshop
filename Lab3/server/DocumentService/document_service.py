@@ -81,10 +81,12 @@ def delete_document(event, context):
 @tracer.capture_lambda_handler
 def get_documents(event, context):
     tenantId = event["requestContext"]["authorizer"]["tenantId"]
+    userId = event["requestContext"]["authorizer"]["userId"]
     tracer.put_annotation(key="TenantId", value=tenantId)
+    # **get using userId rather than tenantId
 
     logger.log_with_tenant_context(event, "Request received to get all documents")
-    response = document_service_dal.get_documents(event, tenantId)
+    response = document_service_dal.get_documents(event, tenantId, userId)
     metrics_manager.record_metric(event, "DocumentsRetrieved", "Count", len(response))
     logger.log_with_tenant_context(event, "Request completed to get all documents")
     return utils.generate_response(response)

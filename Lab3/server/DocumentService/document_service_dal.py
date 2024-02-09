@@ -29,6 +29,8 @@ def get_document(event, key):
     try:
         shardId = key.split(":")[0]
         documentId = key.split(":")[1]
+        userId = shardId.split("-")[1]
+
         logger.log_with_tenant_context(event, shardId)
         logger.log_with_tenant_context(event, documentId)
         response = table.get_item(
@@ -87,9 +89,9 @@ def delete_document(event, key):
 # TODO: Implement this method
 def create_document(event, payload):
     tenantId = event["requestContext"]["authorizer"]["tenantId"]
+    userId = event["requestContext"]["authorizer"]["userId"]
 
-    suffix = random.randrange(suffix_start, suffix_end)
-    shardId = tenantId + "-" + str(suffix)
+    shardId = tenantId + "-" + userId
 
     document = Document(
         shardId,
@@ -179,10 +181,11 @@ def update_document(event, payload, key):
         return document
 
 
-def get_documents(event, tenantId):
+def get_documents(event, tenantId, userId):
     get_all_documents_response = []
     try:
-        __query_all_partitions(tenantId, get_all_documents_response, table, event)
+        shardId = tenantId + "-" + userId
+        __get_tenant_data(shardId, get_all_documents_response, table, event)
     except ClientError as e:
         logger.error(e.response["Error"]["Message"])
         raise Exception("Error getting all documents", e)
@@ -191,30 +194,10 @@ def get_documents(event, tenantId):
         return get_all_documents_response
 
 
-def __query_all_partitions(tenantId, get_all_documents_response, table, event):
-    threads = []
-
-    for suffix in range(suffix_start, suffix_end):
-        partition_id = tenantId + "-" + str(suffix)
-
-        thread = threading.Thread(
-            target=__get_tenant_data,
-            args=[partition_id, get_all_documents_response, table, event],
-        )
-        threads.append(thread)
-
-    # Start threads
-    for thread in threads:
-        thread.start()
-    # Ensure all threads are finished
-    for thread in threads:
-        thread.join()
-
-
-def __get_tenant_data(partition_id, get_all_documents_response, table, event):
-    logger.info(partition_id)
+def __get_tenant_data(shardId, get_all_documents_response, table, event):
+    logger.info(shardId)
     response = table.query(
-        KeyConditionExpression=Key("shardId").eq(partition_id),
+        KeyConditionExpression=Key("shardId").eq(shardId),
         ReturnConsumedCapacity="TOTAL",
     )
     if len(response["Items"]) > 0:
