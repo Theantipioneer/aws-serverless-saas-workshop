@@ -21,10 +21,7 @@ Parameters:
         Type: String
         Default: "prod"
         Description: "Stage Name for the api"
-    CognitoUserPoolId:
-        Type: String
-    CognitoUserPoolClientId:
-        Type: String
+
 Resources:
     ServerlessSaaSLayers:
         Type: AWS::Serverless::LayerVersion
