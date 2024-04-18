@@ -1,6 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: MIT-0
-
 from pprint import pprint
 import os
 import boto3
@@ -13,6 +10,7 @@ import threading
 import metrics_manager
 
 from document_models import Document
+from document_models import Entity
 from types import SimpleNamespace
 from boto3.dynamodb.conditions import Key
 
@@ -21,30 +19,37 @@ table_name = os.environ["DOCUMENT_TABLE_NAME"]
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(table_name)
 
-suffix_start = 1
-suffix_end = 10
+
 
 
 def get_document(event, key):
     try:
-        shardId = key.split(":")[0]
-        documentId = key.split(":")[1]
-        logger.log_with_tenant_context(event, shardId)
-        logger.log_with_tenant_context(event, documentId)
+        shard_id = key.split(":")[0]
+        document_id = key.split(":")[1]
+
         response = table.get_item(
-            Key={"shardId": shardId, "documentId": documentId},
+            Key={"shardId": shard_id, "documentId": document_id},
             ReturnConsumedCapacity="TOTAL",
         )
-        item = response["Item"]
+        item = response.get("Item")
+
+        if not item:
+            return None
+
+        entity_data = item.get("documentData", {}).get("entity", {})
+        entity = Entity(
+            invoice_number=entity_data.get("invoice_number"),
+            invoice_date=entity_data.get("invoice_date"),
+            total_amount=entity_data.get("total_amount"),
+            vat_amount=entity_data.get("vat_amount"),
+        )
+
         document = Document(
-            item["shardId"],
-            item["documentId"],
-            item["invoice_number"],
-            item["invoice_date"],
-            item["total_amount"],
-            item["vat_amount"],
-            item["image_key"],
-            item["title"],
+            shard_id,
+            document_id,
+            item.get("documentData", {}).get("title"),
+            item.get("documentData", {}).get("image_key"),
+            entity,
         )
 
         metrics_manager.record_metric(
@@ -63,10 +68,12 @@ def get_document(event, key):
 
 def delete_document(event, key):
     try:
-        shardId = key.split(":")[0]
-        documentId = key.split(":")[1]
+        print("key:", key)
+        shard_id = key.split(":")[0]
+        document_id = key.split(":")[1]
+
         response = table.delete_item(
-            Key={"shardId": shardId, "documentId": documentId},
+            Key={"shardId": shard_id, "documentId": document_id},
             ReturnConsumedCapacity="TOTAL",
         )
 
@@ -84,35 +91,31 @@ def delete_document(event, key):
         return response
 
 
+
 # TODO: Implement this method
 def create_document(event, payload):
-    tenantId = event["requestContext"]["authorizer"]["tenantId"]
+    tenant_id = event["requestContext"]["authorizer"]["tenantId"]
+    user_id = event["requestContext"]["authorizer"]["userId"]
 
-    suffix = random.randrange(suffix_start, suffix_end)
-    shardId = tenantId + "-" + str(suffix)
+    shard_id = f"{tenant_id}-{user_id}"
 
-    document = Document(
-        shardId,
-        str(uuid.uuid4()),
-        payload.invoice_number,
-        payload.invoice_date,
-        payload.total_amount,
-        payload.vat_amount,
-        payload.image_key,
-        payload.title,
-    )
+    document_id = str(uuid.uuid4())
 
     try:
         response = table.put_item(
             Item={
-                "shardId": shardId,
-                "documentId": document.documentId,
-                "invoice_number": document.invoice_number,
-                "invoice_date": document.invoice_date,
-                "total_amount": document.total_amount,
-                "vat_amount": document.vat_amount,
-                "image_key": document.image_key,
-                "title": document.title,
+                "shardId": shard_id,
+                "documentId": document_id,
+                "documentData": {
+                    "title": payload.title,
+                    "image_key": payload.image_key,
+                    "entity": {
+                        "invoice_number": payload.entity.invoice_number,
+                        "invoice_date": payload.entity.invoice_date,
+                        "total_amount": payload.entity.total_amount,
+                        "vat_amount": payload.entity.vat_amount,
+                    }
+                }
             },
             ReturnConsumedCapacity="TOTAL",
         )
@@ -128,38 +131,54 @@ def create_document(event, payload):
         raise Exception("Error adding a document", e)
     else:
         logger.info("PutItem succeeded:")
-        return document
+        # Return the created document
+        return {
+            "shardId": shard_id,
+            "documentId": document_id,
+            "title": payload.title,
+            "image_key": payload.image_key,
+            "entity": {
+                "invoice_number": payload.entity.invoice_number,
+                "invoice_date": payload.entity.invoice_date,
+                "total_amount": payload.entity.total_amount,
+                "vat_amount": payload.entity.vat_amount,
+            }
+        }
 
 
 def update_document(event, payload, key):
     try:
-        shardId = key.split(":")[0]
-        documentId = key.split(":")[1]
-        logger.log_with_tenant_context(event, shardId)
-        logger.log_with_tenant_context(event, documentId)
+        shard_id = key.split(":")[0]
+        document_id = key.split(":")[1]
+
+        entity_data = {
+            "invoice_number": payload.entity.invoice_number,
+            "invoice_date": payload.entity.invoice_date,
+            "total_amount": payload.entity.total_amount,
+            "vat_amount": payload.entity.vat_amount,
+        }
+        entity = Entity(**entity_data)
 
         document = Document(
-            shardId,
-            documentId,
-            payload.invoice_number,
-            payload.invoice_date,
-            payload.total_amount,
-            payload.vat_amount,
-            payload.image_key,
+            shard_id,
+            document_id,
             payload.title,
+            payload.image_key,
+            entity
         )
 
         response = table.update_item(
-            Key={"shardId": document.shardId, "documentId": document.documentId},
-            UpdateExpression="set invoice_number=:invoice_number, #n=:documentDate, total_amount=:total_amount, vat_amount=:vat_amount, image_key=:image_key, title=:title",
-            ExpressionAttributeNames={"#n": "invoice_date"},
+            Key={"shardId": document.shard_id, "documentId": document.document_id},
+            UpdateExpression="set documentData.title=:title, documentData.image_key=:image_key, documentData.entity=:entity",
             ExpressionAttributeValues={
-                ":invoice_number": document.invoice_number,
-                ":documentDate": document.invoice_date,
-                ":total_amount": document.total_amount,
-                ":vat_amount": document.vat_amount,
-                ":image_key": document.image_key,
                 ":title": document.title,
+                ":image_key": document.image_key,
+                ":entity": {
+                    "invoice_number": document.entity.invoice_number,
+                    "invoice_date": document.entity.invoice_date,
+                    "total_amount": document.entity.total_amount,
+                    "vat_amount": document.entity.vat_amount,
+                }
             },
             ReturnValues="UPDATED_NEW",
             ReturnConsumedCapacity="TOTAL",
@@ -179,10 +198,12 @@ def update_document(event, payload, key):
         return document
 
 
-def get_documents(event, tenantId):
+
+def get_documents(event, tenantId, userId):
     get_all_documents_response = []
     try:
-        __query_all_partitions(tenantId, get_all_documents_response, table, event)
+        shardId = tenantId + "-" + userId
+        __get_tenant_data(shardId, get_all_documents_response, table, event)
     except ClientError as e:
         logger.error(e.response["Error"]["Message"])
         raise Exception("Error getting all documents", e)
@@ -191,52 +212,38 @@ def get_documents(event, tenantId):
         return get_all_documents_response
 
 
-def __query_all_partitions(tenantId, get_all_documents_response, table, event):
-    threads = []
-
-    for suffix in range(suffix_start, suffix_end):
-        partition_id = tenantId + "-" + str(suffix)
-
-        thread = threading.Thread(
-            target=__get_tenant_data,
-            args=[partition_id, get_all_documents_response, table, event],
-        )
-        threads.append(thread)
-
-    # Start threads
-    for thread in threads:
-        thread.start()
-    # Ensure all threads are finished
-    for thread in threads:
-        thread.join()
-
-
-def __get_tenant_data(partition_id, get_all_documents_response, table, event):
-    logger.info(partition_id)
+def __get_tenant_data(shardId, get_all_documents_response, table, event):
+    logger.info(shardId)
     response = table.query(
-        KeyConditionExpression=Key("shardId").eq(partition_id),
+        KeyConditionExpression=Key("shardId").eq(shardId),
         ReturnConsumedCapacity="TOTAL",
     )
-    if len(response["Items"]) > 0:
-        for item in response["Items"]:
-            document = Document(
-                item["shardId"],
-                item["documentId"],
-                item["invoice_number"],
-                item["invoice_date"],
-                item["total_amount"],
-                item["vat_amount"],
-                item["image_key"],
-                item["title"],
-            )
-            get_all_documents_response.append(document)
+    for item in response.get("Items", []):
+        entity_data = item.get("documentData", {}).get("entity", {})
+        entity = Entity(
+            invoice_number=entity_data.get("invoice_number"),
+            invoice_date=entity_data.get("invoice_date"),
+            total_amount=entity_data.get("total_amount"),
+            vat_amount=entity_data.get("vat_amount"),
+        )
+
+        document = Document(
+            item.get("shardId"),
+            item.get("documentId"),
+            item.get("documentData", {}).get("title"),
+            item.get("documentData", {}).get("image_key"),
+            entity,
+        )
+        get_all_documents_response.append(document)
 
     metrics_manager.record_metric(
         event,
         "ReadCapacityUnits",
         "Count",
-        response["ConsumedCapacity"]["CapacityUnits"],
+        response.get("ConsumedCapacity", {}).get("CapacityUnits", 0),
     )
+
+
 
 
 def __get_dynamodb_table(event, dynamodb):

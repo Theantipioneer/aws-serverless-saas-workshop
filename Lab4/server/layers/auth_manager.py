@@ -40,8 +40,8 @@ def isTenantUser(user_role):
     else:
         return False
 
-
-def getPolicyForUser(user_role, service_identifier, tenant_id, region, aws_account_id):
+# changed tenant_id to user_id
+def getPolicyForUser(user_role, service_identifier, tenant_id, user_id, region, aws_account_id):
     """This method is being used by Authorizer to get appropriate policy by user role
     Args:
         user_role (string): UserRoles enum
@@ -57,10 +57,10 @@ def getPolicyForUser(user_role, service_identifier, tenant_id, region, aws_accou
         iam_policy = __getPolicyForSystemAdmin(region, aws_account_id)
     elif isTenantAdmin(user_role):
         iam_policy = __getPolicyForTenantAdmin(
-            tenant_id, service_identifier, region, aws_account_id
+            tenant_id, user_id, service_identifier, region, aws_account_id
         )
     elif isTenantUser(user_role):
-        iam_policy = __getPolicyForTenantUser(tenant_id, region, aws_account_id)
+        iam_policy = __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id)
 
     return iam_policy
 
@@ -88,8 +88,8 @@ def __getPolicyForSystemAdmin(region, aws_account_id):
 
     return json.dumps(policy)
 
-
-def __getPolicyForTenantAdmin(tenant_id, sevice_identifier, region, aws_account_id):
+# Added userId
+def __getPolicyForTenantAdmin(tenant_id, user_id, sevice_identifier, region, aws_account_id):
     if sevice_identifier == utils.Service_Identifier.SHARED_SERVICES.value:
         policy = {
             "Version": "2012-10-17",
@@ -156,7 +156,7 @@ def __getPolicyForTenantAdmin(tenant_id, sevice_identifier, region, aws_account_
                     ],
                     "Condition": {
                         "ForAllValues:StringLike": {
-                            "dynamodb:LeadingKeys": ["{0}-*".format(tenant_id)]
+                            "dynamodb:LeadingKeys": ["{0}-{1}".format(tenant_id, user_id)]
                         }
                     },
                 },
@@ -165,7 +165,7 @@ def __getPolicyForTenantAdmin(tenant_id, sevice_identifier, region, aws_account_
     return json.dumps(policy)
 
 
-def __getPolicyForTenantUser(tenant_id, region, aws_account_id):
+def __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id):
 
     policy = {
         "Version": "2012-10-17",
@@ -186,7 +186,7 @@ def __getPolicyForTenantUser(tenant_id, region, aws_account_id):
                 ],
                 "Condition": {
                     "ForAllValues:StringLike": {
-                        "dynamodb:LeadingKeys": ["{0}-*".format(tenant_id)]
+                            "dynamodb:LeadingKeys": ["{0}-{1}".format(tenant_id, user_id)]
                     }
                 },
             },

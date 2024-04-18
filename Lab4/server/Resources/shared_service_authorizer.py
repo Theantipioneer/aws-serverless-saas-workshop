@@ -94,11 +94,13 @@ def lambda_handler(event, context):
     #   We are generating STS token inside Authorizer to take advantage of the caching behavior of authorizer
     #   Another option is to generate the STS token inside the lambda function itself, as mentioned in this blog post: https://aws.amazon.com/blogs/apn/isolating-saas-tenants-with-dynamically-generated-iam-policies/
     #   Finally, you can also consider creating one Authorizer per microservice in cases where you want the IAM policy specific to that service
-
+    
+    user_id = ""
     iam_policy = auth_manager.getPolicyForUser(
         user_role,
         utils.Service_Identifier.SHARED_SERVICES.value,
         tenant_id,
+        user_id,
         region,
         aws_account_id,
     )

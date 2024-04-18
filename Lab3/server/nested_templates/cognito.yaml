@@ -49,6 +49,8 @@ Resources:
         - AttributeDataType: "String"
           Name: tenantId          
         - AttributeDataType: "String"
+          Name: userId          
+        - AttributeDataType: "String"
           Name: userRole
           Required: False
           Mutable: True        
@@ -75,6 +77,7 @@ Resources:
       WriteAttributes:
         - "email"
         - "custom:tenantId"
+        - "custom:userId"
         - "custom:userRole"        
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain

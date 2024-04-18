@@ -86,8 +86,8 @@ else
     echo "skip_flag disabled. Script will pause for confirmation before deleting resources."
 fi
 
-delete_stack_after_confirming "serverless-saas-workshop-lab1"
-delete_stack_after_confirming "stack-pooled"
+delete_stack_after_confirming "serverless-acumen-lab1"
+delete_stack_after_confirming "acumen-saas"
 delete_stack_after_confirming "serverless-saas-cost-per-tenant-lab7"
 
 echo "$(date) cleaning up platinum tenants..."
@@ -119,14 +119,14 @@ while true; do
     fi
 done
 
-delete_stack_after_confirming "serverless-saas"
+delete_stack_after_confirming "acumen-saas"
 delete_stack_after_confirming "serverless-saas-pipeline"
 
-# delete_codecommit_repo_after_confirming "aws-saas-factory-ref-serverless-saas"
+delete_codecommit_repo_after_confirming "aws-saas-factory-ref-serverless-saas"
 delete_codecommit_repo_after_confirming "aws-serverless-saas-workshop"
 
 echo "$(date) cleaning up buckets..."
-for i in $(aws s3 ls | awk '{print $3}' | grep -E "^serverless-saas-*|^sam-bootstrap-*"); do
+for i in $(aws s3 ls | awk '{print $3}' | grep -E "^acumen-saas-*|^sam-bootstrap-*"); do
 
     if [[ -z "${skip_flag}" ]]; then
         read -p "Delete bucket with name s3://${i} [Y/n] " -n 1 -r

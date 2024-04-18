@@ -119,7 +119,19 @@ Resources:
                 - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
                 - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
                 - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-
+            Policies:
+                - PolicyName: S3AccessPolicy
+                  PolicyDocument:
+                    Version: '2012-10-17'
+                    Statement:
+                      - Effect: Allow
+                        Action:
+                          - s3:ListBucket
+                          - s3:GetObject
+                        Resource:
+                          - arn:aws:s3:::create-entities-uploads-acumen-154654dasfk
+                          - arn:aws:s3:::create-entities-uploads-acumen-154654dasfk/*
+    
     GetDocumentFunction:
         Type: AWS::Serverless::Function
         DependsOn: DocumentFunctionExecutionRole
@@ -216,8 +228,9 @@ Resources:
             Environment:
                 Variables:
                     OPENAI_API_KEY: ""
+                    API_GATEWAY_ID: ""
                     USER_UPLOADS_BUCKET: create-entities-uploads-acumen-154654dasfk
-
+                    
     #Tenant Authorizer
     TenantAuthorizerExecutionRole:
         Type: AWS::IAM::Role
@@ -528,6 +541,7 @@ Resources:
                                 type: "token"
             StageName: !Ref StageName
 
+
     GetDocumentsLambdaApiGatewayExecutionPermission:
         Type: AWS::Lambda::Permission
         Properties:
@@ -547,7 +561,6 @@ Resources:
                         "/*/*/*",
                     ],
                 ]
-
     GetDocumentLambdaApiGatewayExecutionPermission:
         Type: AWS::Lambda::Permission
         Properties:

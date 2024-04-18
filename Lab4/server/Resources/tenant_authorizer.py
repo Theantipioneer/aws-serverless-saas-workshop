@@ -53,6 +53,7 @@ def lambda_handler(event, context):
         principal_id = response["sub"]
         user_name = response["cognito:username"]
         tenant_id = response["custom:tenantId"]
+        user_id = response["custom:userId"]
         user_role = response["custom:userRole"]
 
     tmp = event["methodArn"].split(":")
@@ -73,6 +74,7 @@ def lambda_handler(event, context):
         user_role,
         utils.Service_Identifier.BUSINESS_SERVICES.value,
         tenant_id,
+        user_id,
         region,
         aws_account_id,
     )
@@ -93,6 +95,7 @@ def lambda_handler(event, context):
         "sessiontoken": credentials["SessionToken"],
         "userName": user_name,
         "tenantId": tenant_id,
+        "userId": user_id,
         "userPoolId": userpool_id,
         "userRole": user_role,
     }

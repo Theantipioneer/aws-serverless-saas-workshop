@@ -17,6 +17,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 upload_bucket = os.environ["USER_UPLOADS_BUCKET"]
+api_id = os.environ["API_GATEWAY_ID"]
 
 openai_api_key = os.environ["OPENAI_API_KEY"]
 model = OpenAI(openai_api_key)
@@ -117,7 +118,7 @@ def lambda_handler(event, context):
         print(entity)
 
         create_document_api_endpoint = (
-            "https://4ii59hmute.execute-api.eu-west-1.amazonaws.com/prod/document"
+            f"https://{api_id}.execute-api.eu-west-1.amazonaws.com/prod/document"
         )
         headers = {"Authorization": f"Bearer {jwt_token}"}
 

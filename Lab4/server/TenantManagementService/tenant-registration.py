@@ -33,7 +33,12 @@ def register_tenant(event, context):
         
         logger.info (create_user_response)
         tenant_details['tenantAdminUserName'] = create_user_response['message']['tenantAdminUserName']
-
+        
+          # ** added adminuserId
+        tenant_details["tenantAdminUserId"] = create_user_response["message"][
+            "tenantAdminUserId"
+        ]
+        
         create_tenant_response = __create_tenant(tenant_details, headers, auth, host, stage_name)
         logger.info (create_tenant_response)
 

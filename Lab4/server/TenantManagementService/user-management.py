@@ -9,6 +9,7 @@ import logger
 import metrics_manager
 import auth_manager
 import utils
+import uuid
 from boto3.dynamodb.conditions import Key
 from aws_lambda_powertools import Tracer
 
@@ -30,12 +31,19 @@ def create_tenant_admin_user(event, context):
 
     user_mgmt = UserManagement()
 
+    tenant_admin_user_id = uuid.uuid1().hex
+
     # Add tenant admin now based upon user pool
     tenant_user_group_response = user_mgmt.create_user_group(
         user_pool_id, tenant_id, "User group for tenant {0}".format(tenant_id)
     )
 
-    tenant_admin_user_name = "tenant-admin-{0}".format(tenant_details["tenantId"])
+    tenant_admin_user_name = "admin-{0}-{1}".format(
+        tenant_details["tenantName"], tenant_details["tenantId"]
+    )
+
+    # ** adding a user id
+    tenant_details["userId"] = tenant_admin_user_id
 
     create_tenant_admin_response = user_mgmt.create_tenant_admin(
         user_pool_id, tenant_admin_user_name, tenant_details
@@ -55,6 +63,7 @@ def create_tenant_admin_user(event, context):
         "userPoolId": user_pool_id,
         "appClientId": app_client_id,
         "tenantAdminUserName": tenant_admin_user_name,
+        "tenantAdminUserId": tenant_admin_user_id,
     }
     return utils.create_success_response(response)
 
@@ -67,6 +76,9 @@ def create_user(event, context):
     user_role = event["requestContext"]["authorizer"]["userRole"]
 
     user_details = json.loads(event["body"])
+    # create a userId in the user_details --AM
+    user_id = uuid.uuid1().hex
+    user_details["userId"] = user_id
 
     tracer.put_annotation(key="TenantId", value=tenant_id)
     logger.log_with_tenant_context(event, "Request received to create new user")
@@ -87,6 +99,7 @@ def create_user(event, context):
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "custom:userRole", "Value": user_details["userRole"]},
                 {"Name": "custom:tenantId", "Value": user_tenant_id},
+                {"Name": "custom:userId", "Value": user_id},
             ],
         )
 
@@ -99,7 +112,7 @@ def create_user(event, context):
             user_details["userName"], user_tenant_id
         )
 
-        logger.log_with_tenant_context(event, "Request completed to create new user")
+        logger.log_with_tenant_context(event, "Request completed to create new user ")
         return utils.create_success_response("New user created")
     else:
         logger.log_with_tenant_context(
@@ -132,6 +145,9 @@ def get_users(event, context):
                     if attr["Name"] == "custom:tenantId" and attr["Value"] == tenant_id:
                         is_same_tenant_user = True
                         user_info.tenant_id = attr["Value"]
+
+                    if attr["Name"] == "custom:userId":
+                        user_info.user_id = attr["Value"]
 
                     if attr["Name"] == "custom:userRole":
                         user_info.user_role = attr["Value"]
@@ -170,19 +186,10 @@ def get_user(event, context):
         )
         return utils.create_unauthorized_response()
     else:
+        metrics_manager.record_metric(event, "UserInfoRequested", "Count", 1)
         user_info = get_user_info(event, user_pool_id, user_name)
-        if (
-            not auth_manager.isSystemAdmin(user_role)
-            and user_info.tenant_id != tenant_id
-        ):
-            logger.log_with_tenant_context(
-                event,
-                "Request completed as unauthorized. Users in other tenants cannot be accessed",
-            )
-            return utils.create_unauthorized_response()
-        else:
-            logger.log_with_tenant_context(event, "Request completed to get new user")
-            return utils.create_success_response(user_info.__dict__)
+        logger.log_with_tenant_context(event, "Request completed to get new user ")
+        return utils.create_success_response(user_info.__dict__)
 
 
 @tracer.capture_lambda_handler
@@ -206,29 +213,21 @@ def update_user(event, context):
         )
         return utils.create_unauthorized_response()
     else:
-        user_info = get_user_info(event, user_pool_id, user_name)
-        if (
-            not auth_manager.isSystemAdmin(user_role)
-            and user_info.tenant_id != tenant_id
-        ):
-            logger.log_with_tenant_context(
-                event,
-                "Request completed as unauthorized. Users in other tenants cannot be accessed",
-            )
-            return utils.create_unauthorized_response()
-        else:
-            metrics_manager.record_metric(event, "UserUpdated", "Count", 1)
-            response = client.admin_update_user_attributes(
-                Username=user_name,
-                UserPoolId=user_pool_id,
-                UserAttributes=[
-                    {"Name": "email", "Value": user_details["userEmail"]},
-                    {"Name": "custom:userRole", "Value": user_details["userRole"]},
-                ],
-            )
-            logger.log_with_tenant_context(event, response)
-            logger.log_with_tenant_context(event, "Request completed to update user")
-            return utils.create_success_response("user updated")
+        
+        metrics_manager.record_metric(event, "UserUpdated", "Count", 1)
+        response = client.admin_update_user_attributes(
+            Username=user_name,
+            UserPoolId=user_pool_id,
+            UserAttributes=[
+                {"Name": "email", "Value": user_details["userEmail"]},
+                {"Name": "custom:userRole", "Value": user_details["userRole"]},
+            ],
+        )
+        logger.log_with_tenant_context(event, response)
+
+        logger.log_with_tenant_context(event, "Request completed to update user")
+
+        return utils.create_success_response("user updated")
 
 
 @tracer.capture_lambda_handler
@@ -242,26 +241,15 @@ def disable_user(event, context):
     logger.log_with_tenant_context(event, "Request received to disable new user")
 
     if auth_manager.isTenantAdmin(user_role) or auth_manager.isSystemAdmin(user_role):
-        user_info = get_user_info(event, user_pool_id, user_name)
-        if (
-            not auth_manager.isSystemAdmin(user_role)
-            and user_info.tenant_id != tenant_id
-        ):
-            logger.log_with_tenant_context(
-                event,
-                "Request completed as unauthorized. Users in other tenants cannot be accessed",
-            )
-            return utils.create_unauthorized_response()
-        else:
-            metrics_manager.record_metric(event, "UserDisabled", "Count", 1)
-            response = client.admin_disable_user(
-                Username=user_name, UserPoolId=user_pool_id
-            )
-            logger.log_with_tenant_context(event, response)
-            logger.log_with_tenant_context(
-                event, "Request completed to disable new user"
-            )
-            return utils.create_success_response("User disabled")
+        
+        metrics_manager.record_metric(event, "UserDisabled", "Count", 1)
+        response = client.admin_disable_user(
+            Username=user_name, UserPoolId=user_pool_id
+        )
+
+        logger.log_with_tenant_context(event, response)
+        logger.log_with_tenant_context(event, "Request completed to disable new user")
+        return utils.create_success_response("User disabled")
     else:
         logger.log_with_tenant_context(
             event,
@@ -339,12 +327,14 @@ def get_user_info(event, user_pool_id, user_name):
     metrics_manager.record_metric(event, "UserInfoRequested", "Count", 1)
     response = client.admin_get_user(UserPoolId=user_pool_id, Username=user_name)
     logger.log_with_tenant_context(event, response)
-
+    
     user_info = UserInfo()
     user_info.user_name = response["Username"]
     for attr in response["UserAttributes"]:
         if attr["Name"] == "custom:tenantId":
             user_info.tenant_id = attr["Value"]
+        if attr["Name"] == "custom:userId":
+            user_info.user_id = attr["Value"]
         if attr["Name"] == "custom:userRole":
             user_info.user_role = attr["Value"]
         if attr["Name"] == "email":
@@ -373,6 +363,7 @@ class UserManagement:
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "custom:userRole", "Value": "TenantAdmin"},
                 {"Name": "custom:tenantId", "Value": user_details["tenantId"]},
+                {"Name": "custom:userId", "Value": user_details["userId"]},
             ],
         )
         return response
@@ -396,6 +387,7 @@ class UserInfo:
         self,
         user_name=None,
         tenant_id=None,
+        user_id=None,
         user_role=None,
         email=None,
         status=None,
@@ -405,6 +397,7 @@ class UserInfo:
     ):
         self.user_name = user_name
         self.tenant_id = tenant_id
+        self.user_id = user_id
         self.user_role = user_role
         self.email = email
         self.status = status
