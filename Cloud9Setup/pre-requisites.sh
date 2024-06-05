@@ -45,9 +45,9 @@ python3 -m pip install git-remote-codecommit==1.15.1
 echo "Installing node v14.18.1"
 nvm deactivate
 nvm uninstall node
-nvm install v14.18.1
-nvm use v14.18.1
-nvm alias default v14.18.1
+nvm install v16.20.2
+nvm use v16.20.2
+nvm alias default v16.20.2
 
 # Install cdk cli version ^2.40.0
 echo "Installing cdk cli version ^2.40.0"

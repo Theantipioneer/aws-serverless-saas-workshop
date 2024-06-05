@@ -29,6 +29,7 @@ def create_tenant(event, context):
                     'tenantEmail': tenant_details['tenantEmail'],
                     'tenantPhone': tenant_details['tenantPhone'],
                     'tenantTier': tenant_details['tenantTier'],                    
+                    'tenantBalance': 0,                    
                     'isActive': True                    
                 }
             )                    
@@ -59,12 +60,13 @@ def update_tenant(event, context):
         Key={
             'tenantId': tenant_id,
         },
-        UpdateExpression="set tenantName = :tenantName, tenantAddress = :tenantAddress, tenantEmail = :tenantEmail, tenantPhone = :tenantPhone, tenantTier=:tenantTier",
+        UpdateExpression="set tenantName = :tenantName, tenantAddress = :tenantAddress, tenantEmail = :tenantEmail, tenantPhone = :tenantPhone, tenantTier=:tenantTier, tenantBalance = :tenantBalance",
         ExpressionAttributeValues={
                 ':tenantName' : tenant_details['tenantName'],
                 ':tenantAddress': tenant_details['tenantAddress'],
                 ':tenantEmail': tenant_details['tenantEmail'],
                 ':tenantPhone': tenant_details['tenantPhone'],
+                ':tenantBalance': tenant_details['tenantBalance'],
                 ':tenantTier': tenant_details['tenantTier']                
             },
         ReturnValues="UPDATED_NEW"
@@ -88,11 +90,12 @@ def get_tenant(event, context):
             'tenantName',
             'tenantAddress',
             'tenantEmail',
+            'tenantBalance',
             'tenantPhone'
         ]    
     )             
     item = tenant_details['Item']
-    tenant_info = TenantInfo(item['tenantName'], item['tenantAddress'],item['tenantEmail'], item['tenantPhone'])
+    tenant_info = TenantInfo(item['tenantName'], item['tenantAddress'],item['tenantEmail'], item['tenantPhone'], item['tenantBalance'])
     logger.info(tenant_info)
     
     logger.info("Request completed to get tenant details")
@@ -192,10 +195,11 @@ def __invoke_enable_users(headers, auth, host, stage_name, invoke_url, tenant_id
         return "Success invoking enable users"
 
 class TenantInfo:
-    def __init__(self, tenant_name, tenant_address, tenant_email, tenant_phone):
+    def __init__(self, tenant_name, tenant_address, tenant_email, tenant_phone, tenant_balance):
         self.tenant_name = tenant_name
         self.tenant_address = tenant_address
         self.tenant_email = tenant_email
         self.tenant_phone = tenant_phone
+        self.tenant_balance = tenant_balance
 
    

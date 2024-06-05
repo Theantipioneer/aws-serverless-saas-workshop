@@ -3,7 +3,7 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "stack-pooled"
-s3_bucket = "acumen-sam-lab2-2024"
+s3_bucket = "sam-bootstrap-bucket-57d10957-26b7-4d81-8bb3-d3e32f177ccc"
 s3_prefix = "serverless-saas-tenant"
 region = "eu-west-1"
 confirm_changeset = false
