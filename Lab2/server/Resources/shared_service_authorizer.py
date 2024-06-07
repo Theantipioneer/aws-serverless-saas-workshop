@@ -18,6 +18,9 @@ dynamodb = boto3.resource('dynamodb')
 table_tenant_details = dynamodb.Table('Acumen-TenantDetails')
 user_pool_operation_user = os.environ['OPERATION_USERS_USER_POOL']
 app_client_operation_user = os.environ['OPERATION_USERS_APP_CLIENT']
+pooled_tenant_user_pool = os.environ['POOLED_TENANT_USER_POOL'] #deploy env var
+app_client_pooled_tenant = os.environ['POOLED_TENANT_APP_CLIENT'] #deploy env var
+
 
 def lambda_handler(event, context):
     
@@ -32,8 +35,17 @@ def lambda_handler(event, context):
     unauthorized_claims = jwt.get_unverified_claims(jwt_bearer_token)
     logger.info(unauthorized_claims)
 
-    userpool_id = user_pool_operation_user
-    appclient_id = app_client_operation_user  
+    # Determine user pool ID and app client ID based on user pool
+    if unauthorized_claims.get('iss').endswith(user_pool_operation_user):
+        userpool_id = user_pool_operation_user
+        appclient_id = app_client_operation_user
+        user_role = 'admin'
+    elif unauthorized_claims.get('iss').endswith(pooled_tenant_user_pool):
+        userpool_id = pooled_tenant_user_pool
+        appclient_id = app_client_pooled_tenant 
+        user_role = 'tenant_admin'
+    else:
+        raise Exception('Unauthorized user pool')  
    
     #get keys for tenant user pool to validate
     keys_url = 'https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json'.format(region, userpool_id)
@@ -63,7 +75,13 @@ def lambda_handler(event, context):
     policy.region = tmp[3]
     policy.stage = api_gateway_arn_tmp[1]
 
-    policy.allowAllMethods()
+   # Construct policy based on user role
+    if user_role == 'admin':
+        policy.allowAllMethods()
+    elif user_role == 'tenant_admin':
+        resource = f'tenant/{response["tenant_id"]}/*'
+        policy.allowMethod(HttpVerb.GET, resource)
+        policy.allowMethod(HttpVerb.PUT, resource)
     
     authResponse = policy.build()
  

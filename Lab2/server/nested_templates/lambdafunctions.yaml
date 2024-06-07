@@ -92,7 +92,9 @@ Resources:
       Environment:
         Variables:
           OPERATION_USERS_USER_POOL: !Ref CognitoOperationUsersUserPoolId
+          POOLED_TENANT_USER_POOL: !Ref CognitoUserPoolId
           OPERATION_USERS_APP_CLIENT: !Ref CognitoOperationUsersUserPoolClientId          
+          POOLED_TENANT_APP_CLIENT: !Ref CognitoUserPoolClientId          
           
   #Create user pool for the tenant
   TenantUserPoolLambdaExecutionRole:
