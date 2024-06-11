@@ -1,0 +1,52 @@
+<div class="user-list">
+  <mat-card class="card">
+    <mat-card-content>
+      <mat-card-title>Transaction</mat-card-title>
+
+      <form [formGroup]="transactionForm" (ngSubmit)="onSubmit()">
+        <mat-form-field appearance="fill">
+          <mat-label>Transaction ID</mat-label>
+          <input title="id" matInput formControlName="id" required />
+        </mat-form-field>
+        <mat-form-field appearance="fill">
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="category" required>
+            <mat-option *ngFor="let category of categories" [value]="category">
+              {{ category }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="fill">
+          <mat-label>Date</mat-label>
+          <input title="date" matInput formControlName="date" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Description</mat-label>
+          <input
+            title="description"
+            matInput
+            formControlName="description"
+            required
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Amount</mat-label>
+          <input
+            title="amount"
+            matInput
+            formControlName="amount"
+            type="number"
+            required
+          />
+        </mat-form-field>
+
+        <button mat-raised-button color="primary" type="submit">
+          Add Transaction
+        </button>
+      </form>
+
+    </mat-card-content>
+  </mat-card>
+</div>

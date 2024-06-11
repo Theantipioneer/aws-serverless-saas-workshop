@@ -20,4 +20,9 @@ export const navItems: INavData[] = [
     url: '/users',
     icon: 'supervisor_account',
   },
+  // {
+  //   name: 'Transactions',
+  //   url: '/transactions',
+  //   icon: 'money',
+  // },
 ];

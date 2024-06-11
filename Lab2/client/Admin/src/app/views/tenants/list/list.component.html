@@ -1,9 +1,7 @@
 <div class="tenant-list">
   <mat-card class="card">
     <mat-card-content>
-      <mat-card-title>
-        Tenant List
-      </mat-card-title>
+      <mat-card-title> Tenant List </mat-card-title>
       <div>
         <table mat-table [dataSource]="tenantData" class="mat-elevation-z1">
           <ng-container matColumnDef="tenantId">
@@ -18,7 +16,9 @@
 
           <ng-container matColumnDef="tenantEmail">
             <th mat-header-cell *matHeaderCellDef>E-Mail</th>
-            <td mat-cell *matCellDef="let element">{{ element.tenantEmail }}</td>
+            <td mat-cell *matCellDef="let element">
+              {{ element.tenantEmail }}
+            </td>
           </ng-container>
 
           <ng-container matColumnDef="tenantTier">
@@ -31,10 +31,26 @@
             <td mat-cell *matCellDef="let element">{{ element.isActive }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="tenantBalance">
+            <th mat-header-cell *matHeaderCellDef>Credits</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.tenantBalance }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="addCredits">
+            <th mat-header-cell *matHeaderCellDef>Add Credits</th>
+            <td mat-cell *matCellDef="let element">
+              <!-- {{ element.tenantBalance }} -->
+              <button (click)="addCredits(element)">Add</button>
+            </td>
+          </ng-container>
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
         </table>
-        <mat-card *ngIf="isLoading" style="display: flex; justify-content: center; align-items: center">
+        <mat-card
+          *ngIf="isLoading"
+          style="display: flex; justify-content: center; align-items: center"
+        >
           <mat-progress-spinner
             color="primary"
             mode="indeterminate"
@@ -45,8 +61,51 @@
       </div>
       <mat-card-actions>
         <div class="button-panel">
-          <button routerLink="/tenants/create" mat-raised-button color="primary">Add Tenant</button>
+          <button
+            routerLink="/tenants/create"
+            mat-raised-button
+            color="primary"
+          >
+            Add Tenant
+          </button>
         </div>
+        <div id="payment-form"></div>
+
+        <!-- <body>
+          <h1>Hello</h1>
+          <div id="payment-form" style="height: 100vh"></div>
+          <script src="https://sandbox-checkout.peachpayments.com/js/checkout.js"></script>
+          <script>
+            const checkout = Checkout.initiate({
+              key: "8ac7a4c88fc8ac63018fc92d2ce50163",
+              checkoutId: "4873f5d4596342358661add497741f36",
+              options: {
+                theme: {
+                  brand: {
+                    primary: "#ff0000",
+                  },
+                  cards: {
+                    background: "#00ff00",
+                    backgroundHover: "#F3F3F4",
+                  },
+                },
+              },
+              events: {
+                onCompleted: (event) => console.log("Completed:", event),
+                onCancelled: (event) => console.log("Cancelled:", event),
+                onExpired: (event) => console.log("Expired:", event),
+              },
+            });
+
+            checkout.render("#payment-form");
+          </script>
+        </body> -->
+        <!-- <iframe
+          srcdoc="{{ iframeSrcDoc }}"
+          width="600px"
+          height="700px"
+        ></iframe>
+        <div id="payment-form"></div> -->
       </mat-card-actions>
     </mat-card-content>
   </mat-card>

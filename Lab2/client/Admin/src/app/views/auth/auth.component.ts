@@ -21,6 +21,7 @@ export class AuthComponent implements OnInit {
 
   ngOnInit(): void {
     this.session$ = from(Auth.currentSession());
+    console.log(this.session$);
     this.accessToken$ = this.session$.pipe(
       map((sesh) => sesh.getAccessToken().getJwtToken())
     );

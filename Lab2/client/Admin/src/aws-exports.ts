@@ -6,3 +6,17 @@ const awsmobile = {
 };
 
 export default awsmobile;
+
+// tableName 0760600653
+
+// 0712926785
+// send
+// Hello
+
+// tableName 0712926785
+
+// 0760600653
+// recieve
+// Hello
+
+

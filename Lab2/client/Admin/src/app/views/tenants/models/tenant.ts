@@ -4,4 +4,6 @@ export interface Tenant {
   tenantEmail: string;
   tenantTier: string;
   isActive: boolean;
+  tenantBalance: number;
+  addCredits: Element;
 }
