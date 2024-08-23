@@ -106,7 +106,8 @@ Resources:
                 StringNotEquals:
                   aws:PrincipalArn:
                     - !Ref RegisterTenantLambdaExecutionRoleArn 
-                    - !Ref TenantManagementLambdaExecutionRoleArn 
+                    - !Ref TenantManagementLambdaExecutionRoleArn
+                    
             - Effect: Deny
               Principal: "*"
               Action: "execute-api:Invoke"
@@ -186,8 +187,8 @@ Resources:
                 passthroughBehavior: when_no_match
                 requestTemplates:
                   application/json: '{"statusCode": 200}'
-                type: mock                   
-          
+                type: mock
+                
           /tenant/activation/{tenantid}:
             put:
               security:

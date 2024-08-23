@@ -36,6 +36,7 @@ def create_tenant(event, context):
                 "tenantEmail": tenant_details["tenantEmail"],
                 "tenantPhone": tenant_details["tenantPhone"],
                 "tenantTier": tenant_details["tenantTier"],
+                "tenantBalance": 0,
                 "isActive": True,
             }
         )
@@ -98,6 +99,46 @@ def update_tenant(event, context):
             "Request completed as unauthorized. Only tenant admin or system admin can update tenant!",
         )
         return utils.create_unauthorized_response()
+ 
+        
+@tracer.capture_lambda_handler
+def update_balance(event, context):
+
+    requesting_tenant_id = event["requestContext"]["authorizer"]["tenantId"]
+    user_role = event["requestContext"]["authorizer"]["userRole"]
+
+    tenant_details = json.loads(event["body"])
+    tenant_id = event["pathParameters"]["tenantid"]
+
+    tracer.put_annotation(key="TenantId", value=tenant_id)
+
+    logger.log_with_tenant_context(event, "Request received to update tenant balance")
+
+    if (
+        auth_manager.isTenantAdmin(user_role) and tenant_id == requesting_tenant_id
+    ) or auth_manager.isSystemAdmin(user_role):
+
+        response_update = table_tenant_details.update_item(
+            Key={
+                "tenantId": tenant_id,
+            },
+            UpdateExpression="set tenantBalance = :tenantBalance",
+            ExpressionAttributeValues={
+                ":tenantBalance": tenant_details["tenantBalance"],
+            },
+            ReturnValues="UPDATED_NEW",
+        )
+
+        logger.log_with_tenant_context(event, response_update)
+
+        logger.log_with_tenant_context(event, "Request completed to update tenant balance")
+        return utils.create_success_response("Balance Updated")
+    else:
+        logger.log_with_tenant_context(
+            event,
+            "Request completed as unauthorized. Only tenant admin or system admin can update tenant!",
+        )
+        return utils.create_unauthorized_response()
 
 
 @tracer.capture_lambda_handler
@@ -117,24 +158,64 @@ def get_tenant(event, context):
             Key={
                 "tenantId": tenant_id,
             },
+            # AttributesToGet=[
+            #     "tenantName",
+            #     "tenantAddress",
+            #     "tenantEmail",
+            #     "tenantPhone",
+            # ],
+        )
+        item = tenant_details["Item"]
+        # tenant_info = TenantInfo(
+        #     item["tenantName"],
+        #     item["tenantAddress"],
+        #     item["tenantEmail"],
+        #     item["tenantPhone"],
+        # )
+        logger.log_with_tenant_context(event, item)
+
+        logger.log_with_tenant_context(event, "Request completed to get tenant details")
+        return utils.generate_response(item)
+    else:
+        logger.log_with_tenant_context(
+            event,
+            "Request completed as unauthorized. Only tenant admin or system admin can deactivate tenant!",
+        )
+        return utils.create_unauthorized_response()
+
+
+@tracer.capture_lambda_handler
+def get_balance(event, context):
+    requesting_tenant_id = event["requestContext"]["authorizer"]["tenantId"]
+    user_role = event["requestContext"]["authorizer"]["userRole"]
+    tenant_id = event["pathParameters"]["tenantid"]
+
+    tracer.put_annotation(key="TenantId", value=tenant_id)
+
+    logger.log_with_tenant_context(event, "Request received to get tenant details")
+
+    if (
+        auth_manager.isTenantAdmin(user_role) and tenant_id == requesting_tenant_id
+    ) or auth_manager.isSystemAdmin(user_role):
+        tenant_details = table_tenant_details.get_item(
+            Key={
+                "tenantId": tenant_id,
+            },
             AttributesToGet=[
-                "tenantName",
-                "tenantAddress",
-                "tenantEmail",
-                "tenantPhone",
+                "tenantBalance"
             ],
         )
         item = tenant_details["Item"]
-        tenant_info = TenantInfo(
-            item["tenantName"],
-            item["tenantAddress"],
-            item["tenantEmail"],
-            item["tenantPhone"],
-        )
-        logger.log_with_tenant_context(event, tenant_info)
+        # tenant_info = TenantInfo(
+        #     item["tenantName"],
+        #     item["tenantAddress"],
+        #     item["tenantEmail"],
+        #     item["tenantPhone"],
+        # )
+        logger.log_with_tenant_context(event, item)
 
-        logger.log_with_tenant_context(event, "Request completed to get tenant details")
-        return utils.create_success_response(tenant_info.__dict__)
+        logger.log_with_tenant_context(event, "Request completed to get tenant balance")
+        return utils.generate_response(item)
     else:
         logger.log_with_tenant_context(
             event,

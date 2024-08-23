@@ -22,6 +22,13 @@ Parameters:
         Default: "prod"
         Description: "Stage Name for the api"
 Resources:
+    S3Bucket:
+        Type: AWS::S3::Bucket
+        DependsOn: 
+            - AnalyseExpenseFunction
+        Properties:
+            BucketName: !Join [ '-', [ !Ref AWS::StackName, !Ref AWS::Region, !Ref AWS::AccountId ] ]
+            
     ServerlessSaaSLayers:
         Type: AWS::Serverless::LayerVersion
         Properties:
@@ -34,20 +41,6 @@ Resources:
             RetentionPolicy: Retain
         Metadata:
             BuildMethod: python3.9
-
-    PromptifyLayer:
-        Type: AWS::Serverless::LayerVersion
-        Properties:
-            LayerName: entityLayer-py39
-            Description: Utilities for project
-            ContentUri: layers/
-            CompatibleRuntimes:
-                - python3.9
-            LicenseInfo: "MIT"
-            RetentionPolicy: Retain
-        Metadata:
-            BuildMethod: python3.9
-
     DocumentTable:
         Type: AWS::DynamoDB::Table
         Properties:
@@ -65,7 +58,20 @@ Resources:
                 ReadCapacityUnits: 5
                 WriteCapacityUnits: 5
             TableName: Document-pooled
-
+    ExpenseAsyncTable:
+        Type: AWS::DynamoDB::Table
+        Properties:
+            AttributeDefinitions:
+                - AttributeName: jobId
+                  AttributeType: S
+            KeySchema:
+                - AttributeName: jobId
+                  KeyType: HASH
+            ProvisionedThroughput:
+                ReadCapacityUnits: 5
+                WriteCapacityUnits: 5
+            TableName: AnalyseExpenseAsync-pooled
+    
     DocumentFunctionExecutionRole:
         Type: AWS::IAM::Role
         Properties:
@@ -98,11 +104,101 @@ Resources:
                                 - dynamodb:Query
                             Resource:
                                 - !GetAtt DocumentTable.Arn
-
-    EntityFunctionExecutionRole:
+    PollingExpenseExecutionRole:
         Type: AWS::IAM::Role
         Properties:
-            RoleName: pooled-entity-function-execution-role
+            RoleName: pooled-polling-function-execution-role
+            Path: "/"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+            Policies:
+                - PolicyName: pooled-polling-function-policy-5123
+                  PolicyDocument:
+                      Version: 2012-10-17
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - dynamodb:GetItem
+                            Resource:
+                                - !GetAtt ExpenseAsyncTable.Arn
+                          - Effect: Allow
+                            Action:
+                                - s3:ListBucket
+                                - s3:GetObject
+                            Resource:
+                                - !Sub arn:aws:s3:::${S3Bucket}
+                                - !Sub arn:aws:s3:::${S3Bucket}/*
+    
+    SNSExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: stack-pooled-sns-execution-role
+            Path: "/"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - textract.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AmazonTextractServiceRole
+                - arn:aws:iam::aws:policy/AmazonSNSFullAccess
+    
+    UploadExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: stack-pooled-upload-execution-role-559900
+            Path: "/"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+            Policies:
+                - PolicyName: upload-policy-559900
+                  PolicyDocument:
+                      Version: 2012-10-17
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - s3:PutObject
+                                - s3:GetObject
+                                - s3:ListBucket
+                            Resource:
+                                - !Sub arn:aws:s3:::${S3Bucket}
+                                - !Sub arn:aws:s3:::${S3Bucket}/*
+                          - Effect: Allow
+                            Action:
+                                - lambda:InvokeFunction
+                            Resource:
+                                - !GetAtt AnalyseExpenseFunction.Arn
+                          
+    AnalyseExpenseExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: stack-pooled-analyse-expense-execution-role
             Path: "/"
             AssumeRolePolicyDocument:
                 Version: 2012-10-17
@@ -118,19 +214,25 @@ Resources:
                 - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
                 - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
                 - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-            Policies:
-                - PolicyName: S3AccessPolicy
-                  PolicyDocument:
-                    Version: '2012-10-17'
-                    Statement:
-                      - Effect: Allow
-                        Action:
-                          - s3:ListBucket
+
+    AnalyseExpenseS3Policy:
+        Type: AWS::IAM::Policy
+        Properties:
+            PolicyName: stack-pooled-analyse-expense-s3-policy
+            Roles:
+                - !Ref AnalyseExpenseExecutionRole
+            PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Action:
+                          - s3:PutObject
                           - s3:GetObject
-                        Resource:
-                          - arn:aws:s3:::create-entities-uploads-acumen-154654dasfk
-                          - arn:aws:s3:::create-entities-uploads-acumen-154654dasfk/*
-    
+                          - dynamodb:UpdateItem
+                      Resource:
+                          - !Sub arn:aws:s3:::${S3Bucket}
+                          - !Sub arn:aws:s3:::${S3Bucket}/*
+                          - !GetAtt ExpenseAsyncTable.Arn
 
     GetDocumentFunction:
         Type: AWS::Serverless::Function
@@ -211,26 +313,95 @@ Resources:
                 Variables:
                     POWERTOOLS_SERVICE_NAME: "DocumentService"
                     DOCUMENT_TABLE_NAME: !Ref DocumentTable
-
-    CreateEntityFunction:
+    
+    AnalyseExpenseFunction:
         Type: AWS::Serverless::Function
-        DependsOn: EntityFunctionExecutionRole
+        DependsOn: AnalyseExpenseExecutionRole
         Properties:
-            CodeUri: EntityService/
-            Handler: entity_service.lambda_handler
+            CodeUri: Textract/
+            Handler: analyse_expense.lambda_handler
             Runtime: python3.9
+            Timeout: 180
             MemorySize: 512
             Tracing: Active
-            Role: !GetAtt EntityFunctionExecutionRole.Arn
+            Role: !GetAtt AnalyseExpenseExecutionRole.Arn
             Layers:
                 - !Ref ServerlessSaaSLayers
-                - !Ref PromptifyLayer
+                # - !Sub "arn:aws:lambda:${AWS::Region}:625075209381:layer:analyse-expense:1"
+                - !Sub "arn:aws:lambda:${AWS::Region}:625075209381:layer:poppler_light:5"
             Environment:
                 Variables:
-                    OPENAI_API_KEY: ""
-                    API_GATEWAY_ID: ""
-                    USER_UPLOADS_BUCKET: create-entities-uploads-acumen-154654dasfk
-
+                    OUTPUT_BUCKET_NAME: !Join [ '-', [ !Ref AWS::StackName, !Ref AWS::Region, !Ref AWS::AccountId ] ]
+                    OUTPUT_S3_PREFIX: 'textract-output'
+                    PREFIX: "postprocess"
+                    SNS_TOPIC_ARN: !Ref SNSTopic
+                    SNS_ROLE_ARN: !GetAtt SNSExecutionRole.Arn
+    
+    UploadFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: UploadExecutionRole
+        Properties:
+            CodeUri: S3/
+            Handler: upload.lambda_handler
+            Runtime: python3.9
+            MemorySize: 512
+            Timeout: 360
+            Tracing: Active
+            Role: !GetAtt UploadExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    ANALYSE_EXPENSE_FUNCTION: !Ref AnalyseExpenseFunction
+                    BUCKET_NAME: !Ref S3Bucket
+                   
+    GetExpenseAnalysisFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: AnalyseExpenseExecutionRole
+        Properties:
+            CodeUri: Textract/
+            Handler: get_expense_analysis.lambda_handler
+            Runtime: python3.9
+            Timeout: 180
+            MemorySize: 512
+            Tracing: Active
+            Role: !GetAtt AnalyseExpenseExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+                - !Sub "arn:aws:lambda:${AWS::Region}:625075209381:layer:poppler_light:5"
+            Environment:
+                Variables:
+                    BUCKET_NAME: !Join [ '-', [ !Ref AWS::StackName, !Ref AWS::Region, !Ref AWS::AccountId ] ]
+                    PREFIX: "postprocess"
+                    ASYNCHRONOUS_EXPENSE_TABLE: !Ref ExpenseAsyncTable
+                    
+    PollingExpenseFunction:
+        Type: AWS::Serverless::Function
+        DependsOn: PollingExpenseExecutionRole
+        Properties:
+            CodeUri: Textract/
+            Handler: polling.lambda_handler
+            Runtime: python3.9
+            Timeout: 180
+            MemorySize: 512
+            Tracing: Active
+            Role: !GetAtt PollingExpenseExecutionRole.Arn
+            Layers:
+                - !Ref ServerlessSaaSLayers
+            Environment:
+                Variables:
+                    POOLED_UPLOAD_BUCKET: !Join [ '-', [ !Ref AWS::StackName, !Ref AWS::Region, !Ref AWS::AccountId ] ]
+                    ASYNCHRONOUS_EXPENSE_TABLE: !Ref ExpenseAsyncTable
+    
+    SNSTopic:
+        Type: AWS::SNS::Topic
+        DependsOn: 
+            - GetExpenseAnalysisFunction
+        Properties:
+            Subscription:
+                - Protocol: lambda
+                  Endpoint: !GetAtt GetExpenseAnalysisFunction.Arn                
+    
     BusinessServicesAuthorizerFunction:
         Type: AWS::Serverless::Function
         Properties:
@@ -246,6 +417,7 @@ Resources:
                 Variables:
                     TENANT_USER_POOL: !ImportValue Acumen-SaaS-CognitoTenantUserPoolId
                     TENANT_APP_CLIENT: !ImportValue Acumen-SaaS-CognitoTenantAppClientId
+    
     ApiGatewayAccessLogs:
         Type: AWS::Logs::LogGroup
         Properties:
@@ -449,7 +621,8 @@ Resources:
                                 requestTemplates:
                                     application/json: '{"statusCode": 200}'
                                 type: mock
-                    /entity:
+                
+                    /upload:
                         post:
                             produces:
                                 - application/json
@@ -460,7 +633,56 @@ Resources:
                                 uri: !Join
                                     - ""
                                     - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
-                                      - !GetAtt CreateEntityFunction.Arn
+                                      - !GetAtt UploadFunction.Arn
+                                      - /invocations
+                                httpMethod: POST
+                                type: aws_proxy
+                        options:
+                            consumes:
+                                - application/json
+                            produces:
+                                - application/json
+                            responses:
+                                "200":
+                                    description: 200 response
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                                    headers:
+                                        Access-Control-Allow-Origin:
+                                            type: string
+                                        Access-Control-Allow-Methods:
+                                            type: string
+                                        Access-Control-Allow-Headers:
+                                            type: string
+                            x-amazon-apigateway-integration:
+                                responses:
+                                    default:
+                                        statusCode: 200
+                                        responseParameters:
+                                            method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                                            method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                                            method.response.header.Access-Control-Allow-Origin: "'*'"
+                                passthroughBehavior: when_no_match
+                                requestTemplates:
+                                    application/json: '{"statusCode": 200}'
+                                type: mock
+                    /job/{jobId}:
+                        get:
+                            produces:
+                                - application/json
+                            parameters:
+                                - name: jobId
+                                  in: path
+                                  required: true
+                                  type: string
+                            responses: {}
+                            security:
+                                - Authorizer: []
+                            x-amazon-apigateway-integration:
+                                uri: !Join
+                                    - ""
+                                    - - !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/
+                                      - !GetAtt PollingExpenseFunction.Arn
                                       - /invocations
                                 httpMethod: POST
                                 type: aws_proxy
@@ -509,7 +731,25 @@ Resources:
                                 authorizerResultTtlInSeconds: 30
                                 type: "token"
             StageName: !Ref StageName
-
+            
+    S3InvokeLambdaPermission:
+        Type: AWS::Lambda::Permission
+        DependsOn: 
+            - AnalyseExpenseFunction
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !Ref AnalyseExpenseFunction
+            Principal: lambda.amazonaws.com
+            
+    SNSInvokeLambdaPermission:
+        Type: AWS::Lambda::Permission
+        DependsOn: 
+            - GetExpenseAnalysisFunction
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt GetExpenseAnalysisFunction.Arn
+            Principal: sns.amazonaws.com
+    
     GetDocumentsLambdaApiGatewayExecutionPermission:
         Type: AWS::Lambda::Permission
         Properties:
@@ -529,7 +769,6 @@ Resources:
                         "/*/*/*",
                     ],
                 ]
-
     GetDocumentLambdaApiGatewayExecutionPermission:
         Type: AWS::Lambda::Permission
         Properties:
@@ -614,13 +853,30 @@ Resources:
                         "/*/*/*",
                     ],
                 ]
-    CreateEntityLambdaApiGatewayExecutionPermission:
+    UploadLambdaApiGatewayExecutionPermission:
         Type: AWS::Lambda::Permission
         Properties:
             Action: lambda:InvokeFunction
-            FunctionName: !GetAtt
-                - CreateEntityFunction
-                - Arn
+            FunctionName: !GetAtt UploadFunction.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn:
+                !Join [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        { "Ref": "AWS::Region" },
+                        ":",
+                        { "Ref": "AWS::AccountId" },
+                        ":",
+                        !Ref ApiGatewayTenantApi,
+                        "/*/*/*",
+                    ],
+                ]
+    PollLambdaApiGatewayExecutionPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt PollingExpenseFunction.Arn
             Principal: apigateway.amazonaws.com
             SourceArn:
                 !Join [
@@ -654,7 +910,7 @@ Resources:
                         "/*/*",
                     ],
                 ]
-
+    
 Outputs:
     TenantApiGatewayId:
         Description: Id for Tenant API Gateway

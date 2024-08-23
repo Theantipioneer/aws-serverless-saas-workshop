@@ -12,7 +12,6 @@ from types import SimpleNamespace
 
 tracer = Tracer()
 
-
 @tracer.capture_lambda_handler
 def get_document(event, context):
     tenantId = event["requestContext"]["authorizer"]["tenantId"]
@@ -36,9 +35,14 @@ def create_document(event, context):
     tracer.put_annotation(key="TenantId", value=tenantId)
 
     logger.log_with_tenant_context(event, "Request received to create a document")
+    # used to work but commented out object_hook as its creating SimpleNamespaces which i dont understand
+    # payload = json.loads(
+    #     event["body"], object_hook=lambda d: SimpleNamespace(**d), parse_float=Decimal
+    # )
     payload = json.loads(
-        event["body"], object_hook=lambda d: SimpleNamespace(**d), parse_float=Decimal
+        event["body"], parse_float=Decimal
     )
+    
     document = document_service_dal.create_document(event, payload)
     logger.log_with_tenant_context(event, "Request completed to create a document")
 

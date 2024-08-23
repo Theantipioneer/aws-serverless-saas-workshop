@@ -205,8 +205,6 @@ Resources:
         Variables:
           TENANT_USER_POOL_ID: !Ref CognitoUserPoolId
           POWERTOOLS_SERVICE_NAME: "UserManagement.CreateUser"   
-      
-
   UpdateUserFunction:
     Type: AWS::Serverless::Function
     DependsOn: TenantUserPoolLambdaExecutionRole
@@ -462,9 +460,6 @@ Resources:
           CREATE_TENANT_RESOURCE_PATH: "/tenant"
           PROVISION_TENANT_RESOURCE_PATH: "/provisioning"
           POWERTOOLS_SERVICE_NAME: "TenantRegistration.RegisterTenant"  
-  
-   
-  
 Outputs:
   RegisterTenantLambdaExecutionRoleArn: 
     Value: !GetAtt RegisterTenantLambdaExecutionRole.Arn          

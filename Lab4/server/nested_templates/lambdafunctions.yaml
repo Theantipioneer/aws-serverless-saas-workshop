@@ -413,7 +413,22 @@ Resources:
         - !Ref ServerlessSaaSLayers
       Environment:
         Variables:
-          POWERTOOLS_SERVICE_NAME: "TenantManagement.GetTenant"    
+          POWERTOOLS_SERVICE_NAME: "TenantManagement.GetTenant" 
+          
+  GetBalanceFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: TenantManagementLambdaExecutionRole
+    Properties:
+      CodeUri: ../TenantManagementService/
+      Handler: tenant-management.get_balance
+      Runtime: python3.9
+      Role: !GetAtt TenantManagementLambdaExecutionRole.Arn
+      Tracing: Active
+      Layers:
+        - !Ref ServerlessSaaSLayers
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: "TenantManagement.GetBalance"    
         
   DeactivateTenantFunction:
     Type: AWS::Serverless::Function
@@ -445,6 +460,20 @@ Resources:
       Environment:
         Variables:
           POWERTOOLS_SERVICE_NAME: "TenantManagement.UpdateTenant"          
+  UpdateBalanceFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: TenantManagementLambdaExecutionRole
+    Properties:
+      CodeUri: ../TenantManagementService/
+      Handler: tenant-management.update_balance
+      Runtime: python3.9
+      Role: !GetAtt TenantManagementLambdaExecutionRole.Arn
+      Tracing: Active
+      Layers:
+        - !Ref ServerlessSaaSLayers
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: "TenantManagement.UpdateBalance"          
   GetTenantsFunction:
     Type: AWS::Serverless::Function
     DependsOn: TenantManagementLambdaExecutionRole
@@ -511,10 +540,14 @@ Outputs:
     Value: !GetAtt CreateTenantFunction.Arn
   GetTenantFunctionArn: 
     Value: !GetAtt GetTenantFunction.Arn          
+  GetBalanceFunctionArn: 
+    Value: !GetAtt GetBalanceFunction.Arn          
   DeactivateTenantFunctionArn: 
     Value: !GetAtt DeactivateTenantFunction.Arn          
   UpdateTenantFunctionArn: 
     Value: !GetAtt UpdateTenantFunction.Arn
+  UpdateBalanceFunctionArn: 
+    Value: !GetAtt UpdateBalanceFunction.Arn
   GetUsersFunctionArn:
     Value: !GetAtt GetUsersFunction.Arn            
   GetUserFunctionArn: 
