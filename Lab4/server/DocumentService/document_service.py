@@ -43,6 +43,8 @@ def create_document(event, context):
         event["body"], parse_float=Decimal
     )
     
+    print("payload:", payload)
+    
     document = document_service_dal.create_document(event, payload)
     logger.log_with_tenant_context(event, "Request completed to create a document")
 

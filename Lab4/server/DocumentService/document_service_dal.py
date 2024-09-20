@@ -20,9 +20,9 @@ table = dynamodb.Table(table_name)
         
 def get_document(event, key):
     try:
-        shard_id = key.split(":")[0]
-        document_id = key.split(":")[1]
+        shard_id, document_id = key.split(":")
 
+        # Retrieve the document from the database
         response = table.get_item(
             Key={"shardId": shard_id, "documentId": document_id},
             ReturnConsumedCapacity="TOTAL",
@@ -32,15 +32,18 @@ def get_document(event, key):
         if not item:
             return None
 
+        # Extract pages data
+        pages = item.get("documentData", {}).get("pages", [])
+
+        # Create a Document instance with the retrieved data
         document = Document(
-            shard_id,
-            document_id,
-            item.get("documentData", {}).get("image_key"),
-            item.get("documentData", {}).get("processed_images"),
-            item.get("documentData", {}).get("summary_fields"),
-            item.get("documentData", {}).get("line_items")
+            shard_id=shard_id,
+            document_id=document_id,
+            pages=pages,
+            image_key=item.get("documentData", {}).get("image_key")
         )
 
+        # Record metrics for read capacity
         metrics_manager.record_metric(
             event,
             "ReadCapacityUnits",
@@ -51,8 +54,9 @@ def get_document(event, key):
         logger.error(e.response["Error"]["Message"])
         raise Exception("Error getting a document", e)
     else:
-        logger.info("GetItem succeeded:" + str(document))
+        logger.info("GetItem succeeded: " + str(document))
         return document
+
 
 
 def delete_document(event, key):
@@ -85,83 +89,92 @@ def create_document(event, payload):
     user_id = event["requestContext"]["authorizer"]["userId"]
 
     shard_id = f"{tenant_id}-{user_id}"
-
-    document_id = str(uuid.uuid4())
+    created_documents = []
 
     try:
-        response = table.put_item(
-            Item={
+        for item in payload:
+            document_id = str(uuid.uuid4())
+
+            pages = []
+
+            for page in item.get("pages", []):
+                page_data = {
+                    "image": page["image"],
+                    "boxed_images": page.get("boxed_images", []),
+                    "summary_fields": page.get("summary_fields", {}),
+                    "line_items": page.get("line_items", [])
+                }
+                pages.append(page_data)
+
+            response = table.put_item(
+                Item={
+                    "shardId": shard_id,
+                    "documentId": document_id,
+                    "documentData": {
+                        "image_key": item["image_key"],
+                        "pages": pages
+                    }
+                },
+                ReturnConsumedCapacity="TOTAL",
+            )
+
+            metrics_manager.record_metric(
+                event,
+                "WriteCapacityUnits",
+                "Count",
+                response["ConsumedCapacity"]["CapacityUnits"],
+            )
+
+            created_documents.append({
                 "shardId": shard_id,
                 "documentId": document_id,
-                "documentData": {
-                    "processed_images": payload["processed_images"],
-                    "image_key": payload["image_key"],
-                    "summary_fields": payload["summary_fields"],
-                    "line_items": payload["line_items"]
-                   
-                }
-            },
-            ReturnConsumedCapacity="TOTAL",
-        )
+                "image_key": item["image_key"],
+                "pages": pages
+            })
 
-        metrics_manager.record_metric(
-            event,
-            "WriteCapacityUnits",
-            "Count",
-            response["ConsumedCapacity"]["CapacityUnits"],
-        )
     except ClientError as e:
         logger.error(e.response["Error"]["Message"])
-        raise Exception("Error adding a document", e)
+        raise Exception("Error adding documents", e)
     else:
         logger.info("PutItem succeeded:")
-        # Return the created document
-        return {
-            "shardId": shard_id,
-            "documentId": document_id,
-            "processed_images": payload["processed_images"],
-            "image_key": payload["image_key"],
-            "summary_fields": payload["summary_fields"],
-            "line_items": payload["line_items"]
-        }
+        return created_documents
+
+
 
 
 def update_document(event, payload, key):
     try:
-        shard_id = key.split(":")[0]
-        document_id = key.split(":")[1]
+        shard_id, document_id = key.split(":")
 
-        # entity_data = {
-        #     "invoice_number": payload.entity.invoice_number,
-        #     "invoice_date": payload.entity.invoice_date,
-        #     "total_amount": payload.entity.total_amount,
-        #     "vat_amount": payload.entity.vat_amount,
-        # }
-        # entity = Entity(**entity_data)
+        # Prepare the pages data
+        pages = []
+        for item in payload:
+            page_data = {
+                "image": item["image_key"],
+                "boxed_images": item.get("boxed_images", []),
+                "summary_fields": item.get("pages", [{}])[0].get("summary_fields", {}),
+                "line_items": item.get("pages", [{}])[0].get("line_items", [])
+            }
+            pages.append(page_data)
 
+        # Create a Document instance
         document = Document(
-            shard_id,
-            document_id,
-            payload.processed_images,
-            payload.image_key,
-            payload.summary_fields,
-            payload.line_items,
+            shard_id=shard_id,
+            document_id=document_id,
+            pages=pages,
+            image_key=payload[0]["image_key"]  # Assuming the first page's image_key is representative
         )
 
+        # Update the document in the database
         response = table.update_item(
             Key={"shardId": document.shard_id, "documentId": document.document_id},
-            UpdateExpression="set documentData.processed_images=:processed_images, documentData.image_key=:image_key, documentData.summary_fields=:summary_fields, documentData.line_items=:line_items",
+            UpdateExpression="""
+                set documentData.image_key=:image_key,
+                    documentData.pages=:pages
+            """,
             ExpressionAttributeValues={
                 ":image_key": document.image_key,
-                ":summary_fields": document.summary_fields,
-                ":line_items": document.line_items,
-                ":processed_images": document.processed_images
-                # ":entity": {
-                #     "invoice_number": document.entity.invoice_number,
-                #     "invoice_date": document.entity.invoice_date,
-                #     "total_amount": document.entity.total_amount,
-                #     "vat_amount": document.entity.vat_amount,
-                # }
+                ":pages": document.pages
             },
             ReturnValues="UPDATED_NEW",
             ReturnConsumedCapacity="TOTAL",
@@ -197,36 +210,36 @@ def get_documents(event, tenantId, userId):
 
 def __get_tenant_data(shardId, get_all_documents_response, table, event):
     logger.info(shardId)
+    
+    # Query the table for all documents belonging to the shardId
     response = table.query(
         KeyConditionExpression=Key("shardId").eq(shardId),
         ReturnConsumedCapacity="TOTAL",
     )
-    for item in response.get("Items", []):
-        # entity_data = item.get("documentData", {}).get("entity", {})
-        # entity = Entity(
-        #     invoice_number=entity_data.get("invoice_number"),
-        #     invoice_date=entity_data.get("invoice_date"),
-        #     total_amount=entity_data.get("total_amount"),
-        #     vat_amount=entity_data.get("vat_amount"),
-        # )
 
+    for item in response.get("Items", []):
+        # Extract pages data from each document item
+        pages = item.get("documentData", {}).get("pages", [])
+
+        # Create a Document instance for each retrieved item
         document = Document(
-            item.get("shardId"),
-            item.get("documentId"),
-            item.get("documentData", {}).get("image_key"),
-            item.get("documentData", {}).get("processed_images"),
-            item.get("documentData", {}).get("summary_fields"),
-            item.get("documentData", {}).get("line_items")
-            # entity,
+            shard_id=item.get("shardId"),
+            document_id=item.get("documentId"),
+            pages=pages,
+            image_key=item.get("documentData", {}).get("image_key")
         )
+
+        # Append the document to the response list
         get_all_documents_response.append(document)
 
+    # Record metrics for read capacity
     metrics_manager.record_metric(
         event,
         "ReadCapacityUnits",
         "Count",
         response.get("ConsumedCapacity", {}).get("CapacityUnits", 0),
     )
+
 
 
 

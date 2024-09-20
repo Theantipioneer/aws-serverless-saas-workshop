@@ -33,14 +33,15 @@ Resources:
                 InviteMessageTemplate:
                     EmailMessage: !Join
                         - ""
-                        - - "Login into tenant UI application at "
-                          - "https://"
-                          - !Ref TenantUserPoolCallbackURLParameter
-                          - "/"
-                          - " with username {username} and temporary password {####}"
+                        - - "Login into tenant UI application "
+                        - - "by adding to your excel from the add-in store. "
+                        #   - "https://"
+                        #   - !Ref TenantUserPoolCallbackURLParameter
+                        #   - "/"
+                          - "Use username {username} and temporary password {####}"
                     EmailSubject: !Join
                         - ""
-                        - - "Your temporary password for tenant UI application"
+                        - - "Your temporary password for Acumen application"
             Schema:
                 - AttributeDataType: "String"
                   Name: email

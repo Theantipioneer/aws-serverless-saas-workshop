@@ -31,6 +31,20 @@ def create_success_response(message):
         }),
     }
 
+def create_failure_response(message="Resource not found"):
+    return {
+        "statusCode": StatusCodes.NOT_FOUND.value,
+        "headers": {
+            "Access-Control-Allow-Headers" : "Content-Type, Origin, X-Requested-With, Accept, Authorization, Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT"
+        },
+        "body": json.dumps({
+            "message": message
+        }),
+    }
+
+
 def create_unauthorized_response():
     return {
         "statusCode": StatusCodes.UN_AUTHORIZED.value,

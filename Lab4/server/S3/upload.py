@@ -27,6 +27,8 @@ def lambda_handler(event, context):
             return utils.generate_response({"error": "Upload attempt exceeds limit of 25 documents"})
         
         allowed_formats = {'.pdf', '.png', '.jpg', '.jpeg'}
+        max_file_size_mb = 4
+
 
         # Check document formats
         for document in documents:
@@ -41,34 +43,49 @@ def lambda_handler(event, context):
                 return utils.generate_response({
                     "error": f"Unsupported file format for document: {document}. Allowed formats are: {', '.join(allowed_formats)}"
                 })
-        print(event)
+                
+            # Access the 'file_size' key (assuming the file size is passed in bytes)
+            # file_size = document.get('file_size')
+            # if file_size is None or not isinstance(file_size, (int, float)):
+            #     return utils.generate_response({"error": f"Document '{file_name}' does not contain a valid 'file_size' key or the value is not numeric"})
+
+            # Check if the file size exceeds the maximum allowed size
+            # if file_size > max_file_size_mb * 1024 * 1024:
+            #     return utils.generate_response({
+            #         "error": f"File size of '{file_name}' exceeds the maximum allowed size of {max_file_size_mb} MB"
+            #     })
+
         bucket = os.environ["BUCKET_NAME"]
         tenant_id = event["requestContext"]["authorizer"]["tenantId"]
         sub = event["requestContext"]["authorizer"]["principalId"]
-        print('sub:', sub)
-        # jwt_token = event["headers"]["Authorization"]
+    
+        jwt_token = event["headers"]["Authorization"]
         
         # Log the request
         logger.info(f"Request received to upload documents for tenant {tenant_id}")
 
         # Check tenant balance before uploading
-        # headers = {"Authorization": jwt_token}
-        # response = requests.get(f'https://uh3wulfyxd.execute-api.eu-west-1.amazonaws.com/prod/tenant/{tenant_id}/balance', headers=headers)
-        
-        # if response.status_code != 200:
-        #     return utils.generate_response({'error': 'Failed to check tenant balance'})
+        headers = {"Authorization": jwt_token}
+        url = f"https://uh3wulfyxd.execute-api.eu-west-1.amazonaws.com/prod/tenant/{tenant_id}/balance"
 
-        # tenant_data = response.json()
-        # tenant_balance = tenant_data.get('tenantBalance', 0)
+        response = requests.get(url, headers=headers)
         
-        # total_pages = 0
-        # for doc in documents:
-        #     file_content = base64.b64decode(doc['file'])
-        #     doc_type = doc['file_name'].split(".")[-1].lower()
-        #     total_pages += upload_helper.count_pages(file_content, doc_type)
+        if response.status_code != 200:
+            return utils.generate_response({'error': 'Failed to check tenant balance'})
+
+        tenant_data = response.json()
+        tenant_balance = tenant_data.get('tenantBalance', 0)
         
-        # if tenant_balance < total_pages:
-        #     return utils.generate_response({'error': 'Insufficient balance'})
+        total_pages = 0
+        for doc in documents:
+            file_content = base64.b64decode(doc['file'])
+            doc_type = doc['file_name'].split(".")[-1].lower()
+            total_pages += upload_helper.count_pages(file_content, doc_type)
+        
+        print("tenant balance:", tenant_balance)
+        print("total pages:", total_pages)
+        if tenant_balance < total_pages:
+            return utils.generate_response({'error': 'Insufficient credits. Buy more credits on your admin site. '})
 
         uploaded_documents = []
 
@@ -98,7 +115,7 @@ def lambda_handler(event, context):
                 'bucket': bucket,
                 'documents': uploaded_documents,
                 'tenantId': tenant_id,
-                'sub': sub
+                'sub': sub, 
             })
         )
         # Read and parse the Payload
@@ -110,36 +127,23 @@ def lambda_handler(event, context):
             # Get the response from analyse_expense
             response_body = json.loads(response_payload['body'])
             if response_body:
-                # total_pages_analyzed = response_body['total_pages_analyzed']
-                # structured_data = response_body['data']
                 jobIds = response_body['jobIds']
-                
+
                 # Update tenant balance based on the total pages analyzed
-                # new_balance = tenant_balance - total_pages_analyzed
-                # response = requests.put(
-                #     f'https://uh3wulfyxd.execute-api.eu-west-1.amazonaws.com/prod/tenant/{tenant_id}/balance',
-                #     headers=headers,
-                #     json={'tenantBalance': new_balance}
-                # )
-
-                # if response.status_code != 200:
-                #     logger.error('Failed to update tenant balance')
-                
-                # logger.info(f"Updated tenant balance: {new_balance}")
+                balance_response = requests.put(
+                    url,
+                    headers=headers,
+                    json={'tenantBalance': -total_pages}
+                )
+    
+                if balance_response.status_code != 200:
+                    logger.error('Failed to update tenant balance')
+                else:
+                    # logger.info(f"Updated tenant balance: ")
+                    logger.info(f"balance response: {balance_response} ")
                 # Include processed images in the response
-                # for document_data in structured_data:
-                #     document_key = document_data["image_key"]
-                #     processed_images = get_processed_images(bucket, document_key)
-                    
-                #     # Ensure 'processed_images' key is always included
-                #     document_data["processed_images"] = processed_images if processed_images else []
-
-                    # Return the response with 'processed_images' included in all documents
                 return utils.generate_response({
-                    "message": "Upload and analysis successful",
-                    "uploaded_documents": uploaded_documents,
-                    # "remaining_balance": new_balance,
-                    # "structured_data": structured_data,
+                    "message": "Upload successful",
                     "jobIds": jobIds
                 })
             else:
@@ -152,37 +156,3 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Error processing upload: {str(e)}")
         return utils.generate_response({"error": "Error processing upload", "details": str(e)})
-
-# def get_processed_images(bucket, document_key):
-#     s3_client = boto3.client('s3')
-    
-#     # Determine the base name without extension
-#     if document_key.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
-#         base_name = os.path.splitext(os.path.basename(document_key))[0]
-#     else:
-#         return None  # Unsupported file type, return None
-    
-#     # Processed images are stored as PNGs in the postprocess directory
-#     postprocess_prefix = f"postprocess/{base_name}/"
-    
-#     processed_images = []
-#     paginator = s3_client.get_paginator('list_objects_v2')
-#     pages = paginator.paginate(Bucket=bucket, Prefix=postprocess_prefix)
-    
-#     for page in pages:
-#         for obj in page.get('Contents', []):
-#             if obj['Key'].endswith('.png'):  # Processed images are always saved as PNGs
-#                 processed_images.append(obj['Key'])
-    
-#     return processed_images if processed_images else None
-
-
-        # return {
-        #     'statusCode': 500,
-        #     'headers': {
-        #         "Access-Control-Allow-Headers": "Content-Type, Origin, X-Requested-With, Accept, Authorization, Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin",
-        #         "Access-Control-Allow-Origin": "*",
-        #         "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT"
-        #     },
-        #     'body': json.dumps({'error': str(e)})
-        # }

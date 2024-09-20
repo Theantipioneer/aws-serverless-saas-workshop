@@ -25,16 +25,16 @@ def process_error():
     return error_msg
 
 SUMMARY_FIELD_COLORS = {
-    "INVOICE_RECEIPT_DATE": (255, 0, 0),  # Blue
-    "INVOICE_RECEIPT_ID": (0, 255, 0),    # Green
-    "VENDOR_NAME": (0, 0, 255),           # Red
-    "RECEIVER_NAME": (255, 255, 0),       # Cyan
-    "PO_NUMBER": (255, 0, 255),           # Magenta
-    "TOTAL": (205, 60, 234),              # pink
-    "SUBTOTAL": (226, 185, 247),          # Lilac
-    "TAX": (255, 145, 0),                 # Orange
-    "VENDOR_VAT_NUMBER": (0, 0, 128),     # Navy
-    "RECEIVER_VAT_NUMBER": (128, 128, 0)  # Olive
+    "INVOICE_RECEIPT_DATE": (0, 123, 255),  # Azure
+    "INVOICE_RECEIPT_ID": (167, 252, 0),   # Spring bud
+    "VENDOR_NAME": (80, 200, 120),             # Emerald Green
+    "RECEIVER_NAME": (255, 0, 79),           # Red
+    "PO_NUMBER": (255, 0, 255),             # Magenta
+    "TOTAL": (233, 116, 81),                # Burnt Sienna
+    "SUBTOTAL": (226, 185, 247),            # Lilac
+    "TAX": (191, 0, 255),                   # Electic purple
+    "VENDOR_VAT_NUMBER": (242, 92, 84),     # Peach
+    "RECEIVER_VAT_NUMBER": (87, 204, 153)   # Green
 }
 
 # Color for line item values
@@ -47,24 +47,6 @@ required_line_item_fields = {
     "PRICE",
     "UNIT_PRICE"
 }
-
-
-# def draw_bounding_box(draw, image_size, bounding_box, color):
-#     try:
-#         width, height = image_size
-
-#         # Extract the bounding box coordinates
-#         left = bounding_box['Left'] * width
-#         top = bounding_box['Top'] * height
-#         box_width = bounding_box['Width'] * width
-#         box_height = bounding_box['Height'] * height
-
-#         # Draw the bounding box on the image
-#         top_left = (left, top)
-#         bottom_right = (left + box_width, top + box_height)
-#         draw.rectangle([top_left, bottom_right], outline=color, width=2)
-#     except Exception as e:
-#         logger.error(f"Error drawing bounding box: {e}")
 
 def draw_bounding_box(draw, image_size, bounding_box, color):
     try:

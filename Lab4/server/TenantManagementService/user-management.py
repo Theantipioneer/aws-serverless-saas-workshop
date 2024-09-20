@@ -38,8 +38,11 @@ def create_tenant_admin_user(event, context):
         user_pool_id, tenant_id, "User group for tenant {0}".format(tenant_id)
     )
 
-    tenant_admin_user_name = "admin-{0}-{1}".format(
-        tenant_details["tenantName"], tenant_details["tenantId"]
+    # tenant_admin_user_name = "admin-{0}-{1}".format(
+    #     tenant_details["tenantName"], tenant_details["tenantId"]
+    # )
+    tenant_admin_user_name = "admin-{0}".format(
+        tenant_details["tenantName"]
     )
 
     # ** adding a user id
@@ -79,6 +82,7 @@ def create_user(event, context):
     # create a userId in the user_details --AM
     user_id = uuid.uuid1().hex
     user_details["userId"] = user_id
+    print(f"user details: {user_details}")
 
     tracer.put_annotation(key="TenantId", value=tenant_id)
     logger.log_with_tenant_context(event, "Request received to create new user")
@@ -99,7 +103,7 @@ def create_user(event, context):
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "custom:userRole", "Value": user_details["userRole"]},
                 {"Name": "custom:tenantId", "Value": user_tenant_id},
-                {"Name": "custom:userId", "Value": user_id},
+                {"Name": "custom:userId", "Value": user_details["userId"]},
             ],
         )
 

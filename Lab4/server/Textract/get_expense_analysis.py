@@ -8,19 +8,34 @@ import json
 from decimal import Decimal
 import async_img_processor
 
+SUMMARY_FIELD_COLORS = {
+    "INVOICE_RECEIPT_DATE": (0, 123, 255),  # Azure
+    "INVOICE_RECEIPT_ID": (167, 252, 0),   # Spring bud
+    "VENDOR_NAME": (80, 200, 120),             # Emerald Green
+    "RECEIVER_NAME": (255, 0, 79),           # Red
+    "PO_NUMBER": (255, 0, 255),             # Magenta
+    "TOTAL": (233, 116, 81),                # Burnt Sienna
+    "SUBTOTAL": (226, 185, 247),            # Lilac
+    "TAX": (191, 0, 255),                   # Electic purple
+    "VENDOR_VAT_NUMBER": (242, 92, 84),     # Peach
+    "RECEIVER_VAT_NUMBER": (87, 204, 153)   # Green
+}
+
+LINE_ITEM_COLOR = (255, 165, 0)  # Orange
+
+
 def lambda_handler(event, context):
     BUCKET_NAME = os.environ["BUCKET_NAME"]
     PREFIX = os.environ["PREFIX"]
     
     s3 = boto3.client("s3")
     dynamodb = boto3.resource('dynamodb')
-    # table = dynamodb.Table(os.environ['ASYNCHRONOUS_EXPENSE_TABLE'])
-    
+
     sns_message = json.loads(event["Records"][0]["Sns"]["Message"])
     job_id = sns_message["JobId"]
     document_location = sns_message["DocumentLocation"]
     image_key = document_location["S3ObjectName"]
-    
+
     path_parts = image_key.split('/')
     # invoicename = path_parts[-1].split('.')[0]  # Extract 'invoicename' from 'invoicename.png'
     tenant_id = path_parts[-3]
@@ -29,9 +44,9 @@ def lambda_handler(event, context):
     processed_images = []
     bounding_box_status = 'PENDING'
 
-    summary_fields, line_items, textract_response = process_async_response(job_id)
+    summary_fields_per_page, line_items_per_page, textract_response = process_async_response(job_id)
 
-    save_results_to_s3(image_key, summary_fields, line_items, BUCKET_NAME, PREFIX)
+    save_results_to_s3(image_key, summary_fields_per_page, line_items_per_page, BUCKET_NAME, PREFIX)
     
     try:
         # Process the image asynchronously
@@ -60,8 +75,7 @@ def lambda_handler(event, context):
         bounding_box_status = 'FAILED'
     finally:
         # Notify clients regardless of success or failure
-        notify_clients(dynamodb, job_id, summary_fields, line_items, processed_images, bounding_box_status, image_key)
-
+        notify_clients(dynamodb, job_id, summary_fields_per_page, line_items_per_page, processed_images, bounding_box_status, image_key)
     
     return {"statusCode": 200, "body": json.dumps("Files uploaded successfully!")}
 
@@ -82,15 +96,6 @@ def notify_clients(dynamodb, job_id, summary_fields_per_page, line_items_per_pag
     except Exception as e:
         logger.error(f"Error scanning WebSocket connections table: {e}")
         return
-
-    # Prepare the message to be sent
-    # message = json.dumps({
-    #     "jobId": job_id,
-    #     "bounding_box_status": bounding_box_status,
-    #     "image_key": image_key,
-    #     "boxed_images": processed_images,
-    #     "pages": []
-    # }, default=decimal_default)
     
     message = {
         "jobId": job_id,
@@ -100,31 +105,35 @@ def notify_clients(dynamodb, job_id, summary_fields_per_page, line_items_per_pag
         "pages": []
     }
     
-    for page in range(len(processed_images)):
+    for page_num, image in enumerate(processed_images, start=1):
         page_data = {
-            "image": processed_images[page],
-            "summary_fields": summary_fields_per_page[page]["summary_fields"] if page < len(summary_fields_per_page) else {},
-            "line_items": line_items_per_page[page]["line_items"] if page < len(line_items_per_page) else []
+            "image": image,
+            "summary_fields": {},
+            "line_items": []
         }
+        
+        # Find summary fields and line items for the current page
+        for summary_fields in summary_fields_per_page:
+            if summary_fields["page"] == page_num:
+                page_data["summary_fields"] = summary_fields["summary_fields"]
+                break
+        
+        for line_items in line_items_per_page:
+            if line_items["page"] == page_num:
+                page_data["line_items"] = line_items["line_items"]
+                break
+        
         message["pages"].append(page_data)
     
     # Convert the message to JSON
-    message_json = json.dumps(message, default=decimal_default)
-    
-    for page in range(len(processed_images)):
-        page_data = {
-            "image": processed_images[page],
-            "summary_fields": summary_fields_per_page[page]["summary_fields"] if page < len(summary_fields_per_page) else {},
-            "line_items": line_items_per_page[page]["line_items"] if page < len(line_items_per_page) else []
-        }
-        message["pages"].append(page_data)
+    message_json = json.dumps(message, default=decimal_default) 
 
     logger.info(f"Message prepared for WebSocket delivery: {message}")
 
     apigw_management_client = boto3.client('apigatewaymanagementapi',
                                            endpoint_url=os.environ['WEBSOCKET_API_ENDPOINT'])
 
-    # Send the message to all active connections
+    # Send the message to all active connections -- need to change this to send only to the current user client not all.
     for connection in active_connections['Items']:
         connection_id = connection['connectionId']
         try:
@@ -156,16 +165,16 @@ def process_async_response(job_id):
 
     pages = [response]
     next_token = response.get("NextToken")
-
+    # total_pages = response["DocumentMetadata"]["Pages"]
     while next_token:
         response = textract.get_expense_analysis(JobId=job_id, NextToken=next_token)
         pages.append(response)
+        # total_pages += response["DocumentMetadata"]["Pages"]
         next_token = response.get("NextToken")
 
     summary_fields_per_page, line_items_per_page = extract_expense_data_from_pages(pages)
 
     return summary_fields_per_page, line_items_per_page, response
-
 
 def extract_expense_data_from_pages(pages):
     summary_fields_per_page = []
@@ -201,11 +210,12 @@ def extract_expense_data_from_pages(pages):
                 if field_type in required_summary_fields:
                     value = summary_field.get('ValueDetection', {}).get('Text', 'Unknown')
                     confidence = Decimal(str(summary_field.get('ValueDetection', {}).get('Confidence', 0.0)))
+                    color = SUMMARY_FIELD_COLORS.get(field_type, (0, 0, 0))  # Default to black if not found
                     page_summary_fields[field_type] = {
                         "value": value,
-                        "confidence": confidence
+                        "confidence": confidence,
+                        "color": color
                     }
-
             # Process line items with confidence scores
             for line_item_group in document.get('LineItemGroups', []):
                 for line_item in line_item_group.get('LineItems', []):
@@ -215,9 +225,11 @@ def extract_expense_data_from_pages(pages):
                         if field_type in required_line_item_fields:
                             value = field.get('ValueDetection', {}).get('Text', 'Unknown')
                             confidence = Decimal(str(field.get('ValueDetection', {}).get('Confidence', 0.0)))
+                            color = LINE_ITEM_COLOR  # Use the default line item color
                             line_item_data[field_type] = {
                                 "value": value,
-                                "confidence": confidence
+                                "confidence": confidence,
+                                "color": color
                             }
                     if line_item_data:
                         page_line_items.append(line_item_data)

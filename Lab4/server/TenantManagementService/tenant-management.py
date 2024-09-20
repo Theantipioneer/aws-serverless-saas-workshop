@@ -118,13 +118,34 @@ def update_balance(event, context):
         auth_manager.isTenantAdmin(user_role) and tenant_id == requesting_tenant_id
     ) or auth_manager.isSystemAdmin(user_role):
 
+        # Fetch the current balance from the database
+        current_balance_response = table_tenant_details.get_item(
+            Key={
+                "tenantId": tenant_id,
+            },
+            ProjectionExpression="tenantBalance",
+        )
+
+        if "Item" not in current_balance_response:
+            return utils.create_failure_response("Tenant not found")
+
+        current_balance = current_balance_response["Item"]["tenantBalance"]
+
+        # Add or subtract the provided amount from the current balance
+        amount_to_add_or_subtract = tenant_details["tenantBalance"]
+        if amount_to_add_or_subtract < 0 and abs(amount_to_add_or_subtract) > current_balance:
+            updated_balance = 0  # Set balance to zero if subtraction would go below zero
+        else:
+            updated_balance = current_balance + amount_to_add_or_subtract
+
+        # Update the tenant balance
         response_update = table_tenant_details.update_item(
             Key={
                 "tenantId": tenant_id,
             },
             UpdateExpression="set tenantBalance = :tenantBalance",
             ExpressionAttributeValues={
-                ":tenantBalance": tenant_details["tenantBalance"],
+                ":tenantBalance": updated_balance,
             },
             ReturnValues="UPDATED_NEW",
         )
