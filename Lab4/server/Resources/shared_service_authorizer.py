@@ -65,6 +65,7 @@ def lambda_handler(event, context):
         user_name = response["cognito:username"]
         tenant_id = response["custom:tenantId"]
         user_role = response["custom:userRole"]
+        user_id = response["custom:userId"]
 
     tmp = event["methodArn"].split(":")
     api_gateway_arn_tmp = tmp[5].split("/")
@@ -82,9 +83,8 @@ def lambda_handler(event, context):
             policy.denyMethod(HttpVerb.POST, "tenant-activation")
             policy.denyMethod(HttpVerb.GET, "tenants")
     else:
-        # if not tenant admin or system admin then only allow to get info and update info
-        policy.allowMethod(HttpVerb.GET, "user/*")
-        policy.allowMethod(HttpVerb.PUT, "user/*")
+        policy.allowMethod(HttpVerb.PUT, f"tenant/{tenant_id}/balance")
+        policy.allowMethod(HttpVerb.GET, f"tenant/{tenant_id}/balance")
 
     authResponse = policy.build()
 
@@ -95,7 +95,6 @@ def lambda_handler(event, context):
     #   Another option is to generate the STS token inside the lambda function itself, as mentioned in this blog post: https://aws.amazon.com/blogs/apn/isolating-saas-tenants-with-dynamically-generated-iam-policies/
     #   Finally, you can also consider creating one Authorizer per microservice in cases where you want the IAM policy specific to that service
     
-    user_id = ""
     iam_policy = auth_manager.getPolicyForUser(
         user_role,
         utils.Service_Identifier.SHARED_SERVICES.value,
@@ -103,6 +102,7 @@ def lambda_handler(event, context):
         user_id,
         region,
         aws_account_id,
+        
     )
     logger.info(iam_policy)
 
@@ -128,6 +128,7 @@ def lambda_handler(event, context):
     }
 
     authResponse["context"] = context
+    print(f"auth response: {authResponse}")
 
     return authResponse
 

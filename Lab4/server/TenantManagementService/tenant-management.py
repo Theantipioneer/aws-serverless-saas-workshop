@@ -115,7 +115,7 @@ def update_balance(event, context):
     logger.log_with_tenant_context(event, "Request received to update tenant balance")
 
     if (
-        auth_manager.isTenantAdmin(user_role) and tenant_id == requesting_tenant_id
+        (auth_manager.isTenantAdmin(user_role) or auth_manager.isTenantUser(user_role)) and tenant_id == requesting_tenant_id
     ) or auth_manager.isSystemAdmin(user_role):
 
         # Fetch the current balance from the database
@@ -216,7 +216,7 @@ def get_balance(event, context):
     logger.log_with_tenant_context(event, "Request received to get tenant details")
 
     if (
-        auth_manager.isTenantAdmin(user_role) and tenant_id == requesting_tenant_id
+       (auth_manager.isTenantAdmin(user_role) or auth_manager.isTenantUser(user_role)) and tenant_id == requesting_tenant_id
     ) or auth_manager.isSystemAdmin(user_role):
         tenant_details = table_tenant_details.get_item(
             Key={
@@ -240,7 +240,7 @@ def get_balance(event, context):
     else:
         logger.log_with_tenant_context(
             event,
-            "Request completed as unauthorized. Only tenant admin or system admin can deactivate tenant!",
+            "Request completed as unauthorized. Only tenant admin or system admin can access tenant details",
         )
         return utils.create_unauthorized_response()
 

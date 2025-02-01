@@ -32,7 +32,7 @@ Resources:
   ServerlessSaaSLayers:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: serverless-saas-dependencies
+      LayerName: serverless-saas-dependencies-pooled
       Description: Utilities for project
       ContentUri: ../layers/
       CompatibleRuntimes:

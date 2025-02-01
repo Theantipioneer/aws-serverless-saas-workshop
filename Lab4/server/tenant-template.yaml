@@ -374,24 +374,6 @@ Resources:
                     BUCKET_NAME: !Join [ '-', [ !Ref AWS::StackName, !Ref AWS::Region, !Ref AWS::AccountId ] ]
                     PREFIX: "postprocess"
                     ASYNCHRONOUS_EXPENSE_TABLE: !Ref ExpenseAsyncTable
-                    
-    PollingExpenseFunction:
-        Type: AWS::Serverless::Function
-        DependsOn: PollingExpenseExecutionRole
-        Properties:
-            CodeUri: Textract/
-            Handler: polling.lambda_handler
-            Runtime: python3.9
-            Timeout: 180
-            MemorySize: 512
-            Tracing: Active
-            Role: !GetAtt PollingExpenseExecutionRole.Arn
-            Layers:
-                - !Ref ServerlessSaaSLayers
-            Environment:
-                Variables:
-                    POOLED_UPLOAD_BUCKET: !Join [ '-', [ !Ref AWS::StackName, !Ref AWS::Region, !Ref AWS::AccountId ] ]
-                    ASYNCHRONOUS_EXPENSE_TABLE: !Ref ExpenseAsyncTable
     
     SNSTopic:
         Type: AWS::SNS::Topic
@@ -858,25 +840,6 @@ Resources:
         Properties:
             Action: lambda:InvokeFunction
             FunctionName: !GetAtt UploadFunction.Arn
-            Principal: apigateway.amazonaws.com
-            SourceArn:
-                !Join [
-                    "",
-                    [
-                        "arn:aws:execute-api:",
-                        { "Ref": "AWS::Region" },
-                        ":",
-                        { "Ref": "AWS::AccountId" },
-                        ":",
-                        !Ref ApiGatewayTenantApi,
-                        "/*/*/*",
-                    ],
-                ]
-    PollLambdaApiGatewayExecutionPermission:
-        Type: AWS::Lambda::Permission
-        Properties:
-            Action: lambda:InvokeFunction
-            FunctionName: !GetAtt PollingExpenseFunction.Arn
             Principal: apigateway.amazonaws.com
             SourceArn:
                 !Join [

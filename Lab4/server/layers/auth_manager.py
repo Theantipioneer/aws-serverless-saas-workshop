@@ -4,8 +4,7 @@
 import json
 import utils
 
-
-# These are the roles being supported in this reference architecture
+# These are the roles being supported in this architecture
 class UserRoles:
     SYSTEM_ADMIN = "SystemAdmin"
     CUSTOMER_SUPPORT = "CustomerSupport"
@@ -40,7 +39,7 @@ def isTenantUser(user_role):
     else:
         return False
 
-# changed tenant_id to user_id
+
 def getPolicyForUser(user_role, service_identifier, tenant_id, user_id, region, aws_account_id):
     """This method is being used by Authorizer to get appropriate policy by user role
     Args:
@@ -52,7 +51,7 @@ def getPolicyForUser(user_role, service_identifier, tenant_id, user_id, region, 
         string: policy that tenant needs to assume
     """
     iam_policy = ""
-
+    
     if isSystemAdmin(user_role):
         iam_policy = __getPolicyForSystemAdmin(region, aws_account_id)
     elif isTenantAdmin(user_role):
@@ -60,7 +59,7 @@ def getPolicyForUser(user_role, service_identifier, tenant_id, user_id, region, 
             tenant_id, user_id, service_identifier, region, aws_account_id
         )
     elif isTenantUser(user_role):
-        iam_policy = __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id)
+        iam_policy = __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id, service_identifier)
 
     return iam_policy
 
@@ -88,9 +87,9 @@ def __getPolicyForSystemAdmin(region, aws_account_id):
 
     return json.dumps(policy)
 
-# Added userId
-def __getPolicyForTenantAdmin(tenant_id, user_id, sevice_identifier, region, aws_account_id):
-    if sevice_identifier == utils.Service_Identifier.SHARED_SERVICES.value:
+
+def __getPolicyForTenantAdmin(tenant_id, user_id, service_identifier, region, aws_account_id):
+    if service_identifier == utils.Service_Identifier.SHARED_SERVICES.value:
         policy = {
             "Version": "2012-10-17",
             "Statement": [
@@ -165,32 +164,129 @@ def __getPolicyForTenantAdmin(tenant_id, user_id, sevice_identifier, region, aws
     return json.dumps(policy)
 
 
-def __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id):
-
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "dynamodb:UpdateItem",
-                    "dynamodb:GetItem",
-                    "dynamodb:PutItem",
-                    "dynamodb:DeleteItem",
-                    "dynamodb:Query",
-                ],
-                "Resource": [
-                    "arn:aws:dynamodb:{0}:{1}:table/Document-*".format(
-                        region, aws_account_id
-                    ),
-                ],
-                "Condition": {
-                    "ForAllValues:StringLike": {
-                            "dynamodb:LeadingKeys": ["{0}-{1}".format(tenant_id, user_id)]
-                    }
+# def __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id):
+#     policy = {
+#         "Version": "2012-10-17",
+#         "Statement": [
+#             {
+#                 "Effect": "Allow",
+#                 "Action": [
+#                     "dynamodb:UpdateItem",
+#                     "dynamodb:GetItem",
+#                     "dynamodb:PutItem",
+#                     "dynamodb:Query",
+#                 ],
+#                 "Resource": [
+#                     "arn:aws:dynamodb:{0}:{1}:table/Acumen-TenantUserMapping".format(
+#                         region, aws_account_id
+#                     ),
+#                     "arn:aws:dynamodb:{0}:{1}:table/Acumen-TenantDetails".format(
+#                         region, aws_account_id
+#                     ),
+#                 ],
+#                 "Condition": {
+#                     "ForAllValues:StringEquals": {
+#                         "dynamodb:LeadingKeys": ["{0}".format(tenant_id)]
+#                     }
+#                 },
+#             },
+#             {
+#                 "Effect": "Allow",
+#                 "Action": [
+#                     "dynamodb:UpdateItem",
+#                     "dynamodb:GetItem",
+#                     "dynamodb:PutItem",
+#                     "dynamodb:DeleteItem",
+#                     "dynamodb:Query",
+#                 ],
+#                 "Resource": [
+#                     "arn:aws:dynamodb:{0}:{1}:table/Acumen-TenantStackMapping".format(
+#                         region, aws_account_id
+#                     ),
+#                     "arn:aws:dynamodb:{0}:{1}:table/Acumen-Settings".format(
+#                         region, aws_account_id
+#                     ),
+#                 ],
+#             },
+#         ],
+#     }
+#     return json.dumps(policy)
+    
+def __getPolicyForTenantUser(tenant_id, user_id, region, aws_account_id, service_identifier):
+    if service_identifier == utils.Service_Identifier.SHARED_SERVICES.value:
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "dynamodb:UpdateItem",
+                        "dynamodb:GetItem",
+                        "dynamodb:PutItem",
+                        "dynamodb:Query",
+                    ],
+                    "Resource": [
+                        "arn:aws:dynamodb:{0}:{1}:table/Acumen-TenantUserMapping".format(
+                            region, aws_account_id
+                        ),
+                        "arn:aws:dynamodb:{0}:{1}:table/Acumen-TenantDetails".format(
+                            region, aws_account_id
+                        ),
+                    ],
+                    "Condition": {
+                        "ForAllValues:StringEquals": {
+                            "dynamodb:LeadingKeys": ["{0}".format(tenant_id)]
+                        }
+                    },
                 },
-            },
-        ],
-    }
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "dynamodb:UpdateItem",
+                        "dynamodb:GetItem",
+                        "dynamodb:PutItem",
+                        "dynamodb:DeleteItem",
+                        "dynamodb:Query",
+                    ],
+                    "Resource": [
+                        "arn:aws:dynamodb:{0}:{1}:table/Acumen-TenantStackMapping".format(
+                            region, aws_account_id
+                        ),
+                        "arn:aws:dynamodb:{0}:{1}:table/Acumen-Settings".format(
+                            region, aws_account_id
+                        ),
+                    ],
+                },
+            ],
+        }
+    else:
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "dynamodb:UpdateItem",
+                        "dynamodb:GetItem",
+                        "dynamodb:PutItem",
+                        "dynamodb:DeleteItem",
+                        "dynamodb:Query",
+                    ],
+                    "Resource": [
+                        "arn:aws:dynamodb:{0}:{1}:table/Document-*".format(
+                            region, aws_account_id
+                        ),
+                    ],
+                    "Condition": {
+                        "ForAllValues:StringLike": {
+                            "dynamodb:LeadingKeys": [
+                                "{0}-{1}".format(tenant_id, user_id)
+                            ]
+                        }
+                    },
+                },
+            ],
+        }
 
     return json.dumps(policy)
+
